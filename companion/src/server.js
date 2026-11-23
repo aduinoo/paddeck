@@ -26,6 +26,11 @@ const HELPER_EXE = process.env.PADDECK_HELPER || path.join(ROOT, 'native', 'bin'
 const host = globalThis.__paddeckHost || null;
 
 const DISCOVERY_PORT = 47801;
+// Demo mode (PADDECK_DEMO=1) for screenshots and tutorials: hides the real PC name, LAN
+// address and data path so nothing personal appears on screen.
+const DEMO = !!process.env.PADDECK_DEMO;
+const HOSTNAME = DEMO ? 'MY-PC' : os.hostname();
+const SHOWN_DATA_DIR = DEMO ? ['C:', 'Users', 'You', 'AppData', 'Roaming', 'PadDeck'].join('\\') : DATA_DIR;
 
 log.init(DATA_DIR);
 const store = new Store();
@@ -44,7 +49,7 @@ function lanAddresses() {
     for (const a of list || []) {
       if (a.family !== 'IPv4' || a.internal || a.address.startsWith('169.254.')) continue;
       if (/vEthernet|VirtualBox|VMware|WSL|Hyper-V|Loopback/i.test(name)) continue;
-      out.push({ name, address: a.address });
+      out.push({ name, address: DEMO ? '192.168.1.20' : a.address });
     }
   }
   const rank = (ip) => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : 2);
@@ -98,7 +103,7 @@ function broadcast(msg, except) {
 }
 
 function snapshot() {
-  return { ...monitor.state, focus: store.config.focus.active, version: VERSION, host: os.hostname() };
+  return { ...monitor.state, focus: store.config.focus.active, version: VERSION, host: HOSTNAME };
 }
 
 monitor.on('update', (patch) => broadcast({ type: 'state', patch }));
@@ -230,7 +235,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive', 'Content-Disposition': 'attachment; filename="PadDeck.apk"', 'Content-Length': fs.statSync(apk).size });
       return fs.createReadStream(apk).pipe(res);
     }
-    if (p === '/api/discover') return send(res, 200, { app: 'PadDeck', version: VERSION, host: os.hostname(), port: PORT });
+    if (p === '/api/discover') return send(res, 200, { app: 'PadDeck', version: VERSION, host: HOSTNAME, port: PORT });
     if (p === '/api/pair' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req, 4096)).toString() || '{}');
       try { const r = auth.pair(body.code, body.name, clientIp(req)); log.info(`Paired new device "${r.device.name}" from ${clientIp(req)}`); updateTray(); notify('Tablet paired', `${r.device.name} can now control this PC`); return send(res, 200, r); }
@@ -298,11 +303,11 @@ async function adminApi(req, res, route, url) {
       const ip = body.ip || url.searchParams.get('ip') || addrs[0]?.address || 'localhost';
       const pairUrl = `http://${ip}:${PORT}/#pair=${code}`;
       return send(res, 200, {
-        version: VERSION, host: os.hostname(), port: PORT, addresses: addrs, pairUrl, code, expires,
+        version: VERSION, host: HOSTNAME, port: PORT, addresses: addrs, pairUrl, code, expires,
         qr: await QRCode.toString(pairUrl, { type: 'svg', margin: 1, color: { dark: '#0b0b12', light: '#ffffff' } }),
         devices: store.state.devices.filter((d) => !d.builtin).map(({ tokenHash, ...d }) => ({ ...d, online: [...clients].some((c) => c.device?.id === d.id) })),
         settings: { port: store.state.port, autoStart: await getAutoStart(), allowNewPairing: store.state.allowNewPairing, notifications: store.config.notifications, hardware: store.config.hardware },
-        dataDir: DATA_DIR, scripts: actions.listScripts(), logs: log.tail(300), screens: monitor.state.screens,
+        dataDir: SHOWN_DATA_DIR, scripts: actions.listScripts(), logs: DEMO ? log.tail(300).filter((l) => !/PadDeck Desktop|Temp|Data:/.test(l.msg)) : log.tail(300), screens: monitor.state.screens,
         helperRunning: !!helper.proc,
         apk: [path.join(ROOT, 'PadDeck.apk'), path.join(ROOT, '..', 'PadDeck.apk')].some((f) => fs.existsSync(f)) ? {
           url: `http://${ip}:${PORT}/download/PadDeck.apk`,
@@ -406,7 +411,7 @@ wss.on('connection', (ws, req) => {
 const udp = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 udp.on('message', (m, rinfo) => {
   if (m.toString().trim() !== 'PADDECK_DISCOVER') return;
-  const reply = Buffer.from(JSON.stringify({ app: 'PadDeck', host: os.hostname(), port: PORT, version: VERSION }));
+  const reply = Buffer.from(JSON.stringify({ app: 'PadDeck', host: HOSTNAME, port: PORT, version: VERSION }));
   udp.send(reply, rinfo.port, rinfo.address);
 });
 udp.on('error', (e) => log.warn('Discovery socket', e.message));

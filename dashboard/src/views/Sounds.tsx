@@ -164,8 +164,10 @@ function PageRename({ page, onClose, onDelete }: { page: SoundPage; onClose: () 
 }
 
 // Soundboard audio always plays on the PC's current Windows output: switch it right here.
+const NO_OUTPUTS: { id: string; name: string; isDefault: boolean }[] = []
 function OutputPicker() {
-  const outs = useStore((st) => st.pc?.audio.outputs || [])
+  // Select the stable array itself (a fresh [] in the selector would re-render forever).
+  const outs = useStore((st) => st.pc?.audio.outputs) ?? NO_OUTPUTS
   const [open, setOpen] = useState(false)
   const cur = outs.find((d) => d.isDefault)
   return (

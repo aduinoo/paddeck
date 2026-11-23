@@ -22,7 +22,7 @@ export class Monitor extends EventEmitter {
     this.helper = helper;
     this.store = store;
     this.state = {
-      stats: { cpu: null, cpuModel: os.cpus()[0]?.model?.trim(), cores: os.cpus().length, ram: null, gpu: null, temps: { cpu: null, gpu: null, source: null }, disks: [], net: null, uptime: os.uptime(), host: os.hostname() },
+      stats: { cpu: null, cpuModel: os.cpus()[0]?.model?.trim(), cores: os.cpus().length, ram: null, gpu: null, temps: { cpu: null, gpu: null, source: null }, disks: [], net: null, uptime: os.uptime(), host: process.env.PADDECK_DEMO ? 'MY-PC' : os.hostname() },
       peripherals: { battery: [], inputs: [], scannedAt: null },
       audio: { outputs: [], inputs: [], sessions: [] },
       media: { sessions: [], current: null },
