@@ -1,5 +1,6 @@
 import { icons, type LucideProps, X, Search, Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { isHex, normHex } from '../lib/theme'
 
 // Older/common icon names mapped to their current Lucide names.
 const ALIAS: Record<string, string> = {
@@ -223,3 +224,9 @@ export const fmtBytes = (b?: number | null, perSec = false) => {
 export const fmtTime = (s: number) => { if (!isFinite(s) || s < 0) s = 0; const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}` }
 export const fmtUptime = (s: number) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d}d ${h}h ${m}m` : `${h}h ${m}m` }
 export const uid = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+
+export function HexInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [t, setT] = useState(value)
+  useEffect(() => setT(value), [value])
+  return <input className="field font-mono !py-2 uppercase" value={t} maxLength={7} onChange={(e) => { setT(e.target.value); const v = e.target.value.startsWith('#') ? e.target.value : '#' + e.target.value; if (isHex(v)) onChange(normHex(v)) }} placeholder="#01B6BE" />
+}

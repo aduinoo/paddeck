@@ -110,43 +110,6 @@ namespace PadDeck
             return list;
         }
 
-        [StructLayout(LayoutKind.Sequential)] struct PT { public int x, y; }
-        [DllImport("user32.dll")] static extern bool GetPhysicalCursorPos(out PT p);
-        [DllImport("user32.dll")] static extern bool GetCursorPos(out PT p);
-        public static object Cursor()
-        {
-            PT a, b; GetPhysicalCursorPos(out a); GetCursorPos(out b);
-            var d = new Dictionary<string, object>(); d["physical"] = new[] { a.x, a.y }; d["logical"] = new[] { b.x, b.y }; return d;
-        }
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        struct POINTER_DEVICE_INFO
-        {
-            public uint displayOrientation; public IntPtr device; public uint pointerDeviceType; public IntPtr monitor;
-            public uint startingCursorId; public ushort maxActiveContacts;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 520)] public string productString;
-        }
-        [StructLayout(LayoutKind.Sequential)] struct RECTI { public int l, t, r, b; }
-        [DllImport("user32.dll")] static extern bool GetPointerDevices(ref uint count, [Out] POINTER_DEVICE_INFO[] devices);
-        [DllImport("user32.dll")] static extern bool GetPointerDeviceRects(IntPtr device, out RECTI pointerRect, out RECTI displayRect);
-
-        public static object PointerDevices()
-        {
-            uint n = 0; GetPointerDevices(ref n, null);
-            var arr = new POINTER_DEVICE_INFO[n];
-            GetPointerDevices(ref n, arr);
-            var list = new List<object>();
-            foreach (var d in arr)
-            {
-                RECTI pr, dr; GetPointerDeviceRects(d.device, out pr, out dr);
-                var o = new Dictionary<string, object>();
-                o["type"] = d.pointerDeviceType; o["product"] = d.productString; o["monitor"] = d.monitor.ToInt64();
-                o["display"] = new[] { dr.l, dr.t, dr.r, dr.b }; o["contacts"] = d.maxActiveContacts;
-                list.Add(o);
-            }
-            return list;
-        }
-
         public static object Lock() { if (!LockWorkStation()) throw new Exception("LockWorkStation failed"); return true; }
 
         public static object Sleep()

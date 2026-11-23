@@ -59,7 +59,7 @@ export class Helper extends EventEmitter {
     });
   }
 
-  // Fire-and-forget (used for high-rate pen/touch events). Errors surface as 'async-error'.
+  // Fire-and-forget command. Errors surface as 'async-error'.
   send(cmd, args) {
     if (this.proc) this.proc.stdin.write(JSON.stringify({ cmd, args }) + '\n');
   }

@@ -47,6 +47,17 @@ export class Auth {
     return { token, device: { id: device.id, name: device.name } };
   }
 
+  // PadDeck Desktop's own editor window: a built-in device whose token is re-issued on demand
+  // to callers on this PC only (enforced by the admin API).
+  desktopToken() {
+    const token = crypto.randomBytes(32).toString('base64url');
+    let d = this.store.state.devices.find((x) => x.builtin === 'desktop');
+    if (!d) { d = { id: 'desktop', name: 'PadDeck Desktop', builtin: 'desktop', pairedAt: Date.now() }; this.store.state.devices.push(d); }
+    d.tokenHash = sha(token); d.lastSeen = Date.now();
+    this.store.saveState();
+    return token;
+  }
+
   verify(token) {
     if (!token || typeof token !== 'string') return null;
     const h = sha(token);

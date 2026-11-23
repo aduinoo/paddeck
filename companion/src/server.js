@@ -17,16 +17,14 @@ import { Monitor } from './monitor.js';
 import { Apps, places, listDir } from './apps.js';
 import { Actions } from './actions.js';
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = process.env.PADDECK_ROOT || path.resolve(here, '..', '..');
 const DIST = process.env.PADDECK_DIST || path.join(ROOT, 'dashboard', 'dist');
 const HELPER_EXE = process.env.PADDECK_HELPER || path.join(ROOT, 'native', 'bin', 'PadDeckHelper.exe');
 // Set by the PadDeck Desktop (Electron) shell: { notify, pickPath, openSettings, restart, quit, setStatus }
 const host = globalThis.__paddeckHost || null;
-const BOARDS_DIR = path.join(DATA_DIR, 'whiteboards');
-const EXPORT_DIR = path.join(os.homedir(), 'Documents', 'PadDeck');
-fs.mkdirSync(BOARDS_DIR, { recursive: true });
+
 const DISCOVERY_PORT = 47801;
 
 log.init(DATA_DIR);
@@ -120,7 +118,7 @@ monitor.on('peripherals', (p) => {
 monitor.on('notice', (n) => { if (store.config.notifications[n.kind] !== false) broadcast({ type: 'notice', ...n }); });
 
 helper.on('sound.ended', (d) => broadcast({ type: 'soundEnded', key: d.key, error: d.error }));
-helper.on('async-error', (e) => { if (!/pen|touch/i.test(e)) log.warn('helper:', e); else broadcast({ type: 'notice', kind: 'input', level: 'error', text: e }); });
+helper.on('async-error', (e) => log.warn('helper:', e));
 helper.on('tray', (what) => {
   const url = `http://localhost:${PORT}/admin${what === 'pair' ? '#pair' : ''}`;
   if (what === 'settings' || what === 'pair') helper.call('sys.shellExecute', { file: url }).catch(() => {});
@@ -129,7 +127,7 @@ helper.on('tray', (what) => {
 });
 
 function updateTray() {
-  const devs = [...clients].filter((c) => c.authed).map((c) => c.device.name);
+  const devs = [...new Set([...clients].filter((c) => c.authed && !c.device.builtin).map((c) => c.device.name))];
   if (host) host.setStatus?.(devs);
   else helper.call('sys.trayText', { text: `PadDeck · ${devs.length} device(s) connected` }).catch(() => {});
 }
@@ -149,20 +147,9 @@ async function handleWs(ws, msg) {
       }
       return;
     }
-    case 'pen': {
-      // Coordinates arrive normalised (0..1) against the mapped target rectangle.
-      const rect = penTarget();
-      helper.send('pen', { phase: msg.phase, x: Math.round(rect.x + clamp01(msg.x) * (rect.width - 1)), y: Math.round(rect.y + clamp01(msg.y) * (rect.height - 1)), p: msg.p || 0, tx: msg.tx | 0, ty: msg.ty | 0, r: msg.r | 0, b: !!msg.b, e: !!msg.e });
-      return;
-    }
-    case 'touch': {
-      const rect = penTarget();
-      helper.send('touch', { contacts: (msg.contacts || []).slice(0, 10).map((c) => ({ id: c.id | 0, phase: c.phase, x: Math.round(rect.x + clamp01(c.x) * (rect.width - 1)), y: Math.round(rect.y + clamp01(c.y) * (rect.height - 1)) })) });
-      return;
-    }
     case 'config.set': {
-      if (msg.baseRev !== undefined && msg.baseRev !== store.config.rev) return reply({ type: 'config', config: store.config, conflict: true });
-      try { store.replaceConfig(msg.config); broadcast({ type: 'config', config: store.config }); }
+      if (msg.baseRev !== undefined && msg.baseRev !== store.config.rev) return reply({ type: 'config', config: store.config, conflict: true, by: store.lastEditor || null });
+      try { store.replaceConfig(msg.config); store.lastEditor = ws.device.name; broadcast({ type: 'config', config: store.config, by: msg.clientId || null, device: ws.device.name }); }
       catch (e) { reply({ type: 'notice', level: 'error', text: e.message }); }
       return;
     }
@@ -175,6 +162,12 @@ async function handleWs(ws, msg) {
       return;
     }
     case 'peripherals.scan': await monitor.pollPeripherals(); return;
+    case 'paths.check': {
+      // Lets tiles that open files/folders show "Unavailable" when the target was moved or deleted.
+      const out = {};
+      for (const p of (msg.paths || []).slice(0, 500)) { try { out[p] = fs.existsSync(String(p)); } catch { out[p] = false; } }
+      return reply({ type: 'paths', exists: out });
+    }
     case 'fs.places': return reply({ type: 'fs', places: places(), home: os.homedir() });
     case 'fs.list': {
       try { reply({ type: 'fs', listing: listDir(msg.path) }); } catch (e) { reply({ type: 'fs', error: e.message, path: msg.path }); }
@@ -185,13 +178,6 @@ async function handleWs(ws, msg) {
       if (!host?.pickPath) return reply({ type: 'pc.picked', id: msg.id, error: 'Open PadDeck Desktop on the PC to use its file picker' });
       try { reply({ type: 'pc.picked', id: msg.id, path: await host.pickPath(msg.kind || 'file') }); } catch (e) { reply({ type: 'pc.picked', id: msg.id, error: e.message }); }
       return;
-    }
-    case 'display.status': return reply({ type: 'display', status: await displayStatus(), lan: lanAddresses() });
-    case 'display.openHost': {
-      const st = await displayStatus();
-      if (!st.sunshineInstalled) return reply({ type: 'notice', level: 'error', text: 'Apollo is not installed yet - run setup-second-monitor.ps1 on the PC' });
-      await helper.call('sys.shellExecute', { file: st.webUi }).catch(() => {});
-      return reply({ type: 'notice', text: 'Opened the Apollo web UI on the PC' });
     }
     case 'media.seek': {
       try { await helper.call('media.control', { appId: msg.appId, action: 'seek', position: Number(msg.position) || 0 }); setTimeout(() => monitor.pollMedia().catch(() => {}), 200); }
@@ -224,15 +210,6 @@ function resolveMedia(file) {
   return full;
 }
 
-function penTarget() {
-  const screens = monitor.state.screens;
-  const t = store.config.pen.target;
-  if (t === 'all' && screens.length) {
-    const x = Math.min(...screens.map((s) => s.x)), y = Math.min(...screens.map((s) => s.y));
-    return { x, y, width: Math.max(...screens.map((s) => s.x + s.width)) - x, height: Math.max(...screens.map((s) => s.y + s.height)) - y };
-  }
-  return screens.find((s) => s.name === t) || screens.find((s) => s.primary) || screens[0] || { x: 0, y: 0, width: 1920, height: 1080 };
-}
 
 // ---------------------------------------------------------------- HTTP
 const server = http.createServer(async (req, res) => {
@@ -287,33 +264,6 @@ const server = http.createServer(async (req, res) => {
         fs.writeFileSync(path.join(dir, name), data);
         return send(res, 200, { file: `${kind}/${name}` });
       }
-      if (p === '/api/boards' && req.method === 'GET') {
-        const list = fs.readdirSync(BOARDS_DIR).filter((f) => f.endsWith('.json')).map((f) => {
-          try { const j = JSON.parse(fs.readFileSync(path.join(BOARDS_DIR, f), 'utf8')); return { id: j.id, name: j.name, updated: j.updated, thumb: j.thumb || null, count: (j.items || []).length }; } catch { return null; }
-        }).filter(Boolean).sort((a, b) => b.updated - a.updated);
-        return send(res, 200, list);
-      }
-      const bm = /^\/api\/boards\/([\w-]{1,64})$/.exec(p);
-      if (bm) {
-        const file = path.join(BOARDS_DIR, `${bm[1]}.json`);
-        if (req.method === 'GET') return fs.existsSync(file) ? serveFile(res, file) : send(res, 404, { error: 'Not found' });
-        if (req.method === 'DELETE') { fs.rmSync(file, { force: true }); return send(res, 200, { ok: true }); }
-        if (req.method === 'PUT') {
-          const body = JSON.parse((await readBody(req, 40 * 1024 * 1024)).toString());
-          body.id = bm[1]; body.updated = Date.now();
-          fs.writeFileSync(file + '.tmp', JSON.stringify(body)); fs.renameSync(file + '.tmp', file);
-          return send(res, 200, { ok: true, updated: body.updated });
-        }
-      }
-      if (p === '/api/save-export' && req.method === 'PUT') {
-        const ext = url.searchParams.get('ext') === 'pdf' ? 'pdf' : 'png';
-        const name = String(url.searchParams.get('name') || 'Whiteboard').replace(/[^\w .-]+/g, '_').slice(0, 60);
-        fs.mkdirSync(EXPORT_DIR, { recursive: true });
-        const file = path.join(EXPORT_DIR, `${name} ${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}`);
-        fs.writeFileSync(file, await readBody(req, 60 * 1024 * 1024));
-        log.info(`Whiteboard exported to ${file}`);
-        return send(res, 200, { file, folder: EXPORT_DIR });
-      }
       if (p === '/api/export') return send(res, 200, store.config, { 'Content-Disposition': `attachment; filename="paddeck-config-${new Date().toISOString().slice(0, 10)}.json"` });
       if (p === '/api/import' && req.method === 'POST') {
         const cfg = JSON.parse((await readBody(req, 10 * 1024 * 1024)).toString());
@@ -350,10 +300,10 @@ async function adminApi(req, res, route, url) {
       return send(res, 200, {
         version: VERSION, host: os.hostname(), port: PORT, addresses: addrs, pairUrl, code, expires,
         qr: await QRCode.toString(pairUrl, { type: 'svg', margin: 1, color: { dark: '#0b0b12', light: '#ffffff' } }),
-        devices: store.state.devices.map(({ tokenHash, ...d }) => ({ ...d, online: [...clients].some((c) => c.device?.id === d.id) })),
-        settings: { port: store.state.port, autoStart: await getAutoStart(), allowNewPairing: store.state.allowNewPairing, notifications: store.config.notifications, pen: store.config.pen, hardware: store.config.hardware },
+        devices: store.state.devices.filter((d) => !d.builtin).map(({ tokenHash, ...d }) => ({ ...d, online: [...clients].some((c) => c.device?.id === d.id) })),
+        settings: { port: store.state.port, autoStart: await getAutoStart(), allowNewPairing: store.state.allowNewPairing, notifications: store.config.notifications, hardware: store.config.hardware },
         dataDir: DATA_DIR, scripts: actions.listScripts(), logs: log.tail(300), screens: monitor.state.screens,
-        helperRunning: !!helper.proc, display: await displayStatus(),
+        helperRunning: !!helper.proc,
         apk: [path.join(ROOT, 'PadDeck.apk'), path.join(ROOT, '..', 'PadDeck.apk')].some((f) => fs.existsSync(f)) ? {
           url: `http://${ip}:${PORT}/download/PadDeck.apk`,
           qr: await QRCode.toString(`http://${ip}:${PORT}/download/PadDeck.apk`, { type: 'svg', margin: 1, color: { dark: '#0b0b12', light: '#ffffff' } }),
@@ -361,6 +311,7 @@ async function adminApi(req, res, route, url) {
       });
     }
     case 'rotate': auth.rotate(); return send(res, 200, { ok: true });
+    case 'desktop-token': return send(res, 200, { token: auth.desktopToken() });
     case 'revoke': {
       auth.revoke(body.id);
       for (const c of clients) if (c.device?.id === body.id) c.close(4001, 'Revoked');
@@ -373,9 +324,8 @@ async function adminApi(req, res, route, url) {
       if (body.autoStart !== undefined) await setAutoStart(!!body.autoStart);
       if (body.notifications) Object.assign(store.config.notifications, body.notifications);
       if (body.hardware) Object.assign(store.config.hardware, body.hardware);
-      if (body.pen) Object.assign(store.config.pen, body.pen);
       store.saveState(); store.saveConfigSoon();
-      if (body.notifications || body.hardware || body.pen) broadcast({ type: 'config', config: store.config });
+      if (body.notifications || body.hardware) broadcast({ type: 'config', config: store.config });
       return send(res, 200, { ok: true, restartNeeded: body.port !== undefined && Number(body.port) !== PORT });
     }
     case 'restart': send(res, 200, { ok: true }); return restart();
@@ -408,15 +358,6 @@ function setAutoStart(on) {
   return new Promise((r) => execFile('reg.exe', args, { windowsHide: true }, () => r()));
 }
 
-// Second-monitor stack status (virtual display driver + Sunshine host).
-async function displayStatus() {
-  const pf = process.env.ProgramW6432 || 'C:\\Program Files';
-  const apollo = fs.existsSync(path.join(pf, 'Apollo', 'sunshine.exe'));
-  const sunshine = fs.existsSync(path.join(pf, 'Sunshine', 'sunshine.exe'));
-  const running = await new Promise((r) => execFile('tasklist.exe', ['/FI', 'IMAGENAME eq sunshine.exe', '/NH'], { windowsHide: true }, (e, out) => r(!e && /sunshine\.exe/i.test(out))));
-  const virtualScreens = monitor.state.screens.filter((s) => /virtual|idd|mtt|sudo|parsec/i.test(`${s.monitor} ${s.adapter}`));
-  return { apolloInstalled: apollo, sunshineInstalled: apollo || sunshine, hostRunning: running, virtualDisplay: virtualScreens.length > 0, virtualScreens, webUi: 'https://localhost:47990' };
-}
 
 // ---------------------------------------------------------------- WebSocket
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 2 * 1024 * 1024 });
@@ -448,8 +389,7 @@ wss.on('connection', (ws, req) => {
     clients.delete(ws);
     monitor.setClients([...clients].filter((c) => c.authed).length);
     if (ws.authed) {
-      // Release anything the tablet was holding (pen contact, held modifier keys).
-      helper.send('pen', { phase: 'leave', x: 0, y: 0 });
+      // Release any modifier keys a device was holding.
       for (const k of ['ctrl', 'shift', 'alt', 'space']) helper.call('keys.state', { key: k, down: false }).catch(() => {});
       log.info(`Tablet disconnected: ${ws.device.name}`);
       updateTray();

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { activeProfile, connect, devicePrefs, mediaUrl, run, switchProfile, useLayout, useStore } from './lib/store'
+import { activeProfile, connect, devicePrefs, isDesktop, mediaUrl, run, switchProfile, useLayout, useStore } from './lib/store'
 import { applyTheme } from './lib/theme'
 import { Icon, cx, Slider } from './components/ui'
 import { Toasts } from './components/Toasts'
@@ -9,22 +9,31 @@ import { Control } from './views/Control'
 import { AudioView } from './views/Audio'
 import { Sounds } from './views/Sounds'
 import { AppsView } from './views/Apps'
-import { Draw } from './views/Draw'
-import { Display } from './views/Display'
-import { Settings } from './views/Settings'
-import { Whiteboard } from './views/Whiteboard'
+import { Settings, Profiles } from './views/Settings'
+import { Editor } from './views/Editor'
+import { Admin } from './admin/Admin'
 
-export type Mode = 'deck' | 'sounds' | 'whiteboard' | 'control' | 'audio' | 'apps' | 'draw' | 'display' | 'settings'
-export const NAV: { id: Mode; icon: string; label: string; short: string; main?: boolean }[] = [
+export type Mode = 'deck' | 'editor' | 'sounds' | 'control' | 'audio' | 'apps' | 'profiles' | 'devices' | 'settings'
+type NavItem = { id: Mode; icon: string; label: string; short: string; main?: boolean }
+// Tablet / phone: the controller.
+const DEVICE_NAV: NavItem[] = [
   { id: 'deck', icon: 'LayoutGrid', label: 'Stream Deck', short: 'Deck', main: true },
   { id: 'sounds', icon: 'AudioLines', label: 'Soundboard', short: 'Sounds', main: true },
-  { id: 'whiteboard', icon: 'Presentation', label: 'Whiteboard', short: 'Board', main: true },
   { id: 'control', icon: 'Gauge', label: 'Control Centre', short: 'Control', main: true },
-  { id: 'audio', icon: 'SlidersVertical', label: 'Audio', short: 'Audio' },
+  { id: 'audio', icon: 'SlidersVertical', label: 'Audio', short: 'Audio', main: true },
   { id: 'apps', icon: 'AppWindow', label: 'Apps', short: 'Apps' },
-  { id: 'draw', icon: 'PenTool', label: 'Drawing Tablet', short: 'Tablet' },
-  { id: 'display', icon: 'MonitorSmartphone', label: 'Second Monitor', short: 'Monitor' },
 ]
+// PadDeck Desktop: the editor.
+const DESKTOP_NAV: NavItem[] = [
+  { id: 'control', icon: 'Gauge', label: 'Dashboard', short: 'Dashboard' },
+  { id: 'editor', icon: 'LayoutGrid', label: 'Stream Deck Editor', short: 'Editor' },
+  { id: 'apps', icon: 'AppWindow', label: 'Applications', short: 'Apps' },
+  { id: 'sounds', icon: 'AudioLines', label: 'Soundboard', short: 'Sounds' },
+  { id: 'audio', icon: 'SlidersVertical', label: 'Audio Control', short: 'Audio' },
+  { id: 'profiles', icon: 'Users', label: 'Profiles', short: 'Profiles' },
+  { id: 'devices', icon: 'Smartphone', label: 'Devices', short: 'Devices' },
+]
+export const NAV = isDesktop ? DESKTOP_NAV : DEVICE_NAV
 
 const lsGet = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* ignore */ } }
@@ -33,11 +42,16 @@ export default function App() {
   const status = useStore((s) => s.status)
   const config = useStore((s) => s.config)
   const layout = useLayout()
-  const [mode, setModeRaw] = useState<Mode>(() => (lsGet('paddeck.mode') as Mode) || 'deck')
+  const [mode, setModeRaw] = useState<Mode>(() => {
+    const m = lsGet('paddeck.mode') as Mode
+    return m && (m === 'settings' || NAV.some((n) => n.id === m)) ? m : isDesktop ? 'editor' : 'deck'
+  })
   const [immersive, setImmersive] = useState(false)
   const setMode = (m: Mode) => { setModeRaw(m); lsSet('paddeck.mode', m); setImmersive(false) }
 
   useEffect(() => { connect() }, [])
+  // PadDeck Desktop tray: "Pair a device" opens the Devices section.
+  useEffect(() => { const h = () => { if (isDesktop && location.hash === '#pair') setMode('devices') }; h(); window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h) }, [])
   useEffect(() => { const h = (e: Event) => setMode((e as CustomEvent).detail); window.addEventListener('paddeck:mode', h); return () => window.removeEventListener('paddeck:mode', h) }, [])
 
   const prof = activeProfile(config)
@@ -49,7 +63,7 @@ export default function App() {
   if (status === 'unpaired') return <><Background /><Pair /><Toasts /></>
   if (!config || !prof) return <><Background /><Connecting /><Toasts /></>
 
-  const fullBleed = mode === 'draw' || mode === 'display' || mode === 'whiteboard'
+  const fullBleed = false
   const phone = layout === 'phone'
   return (
     <div className="h-full flex flex-col">
@@ -59,13 +73,13 @@ export default function App() {
         {!immersive && !phone && <Rail mode={mode} setMode={setMode} />}
         <main className={cx('flex-1 min-w-0 min-h-0', !fullBleed && (phone ? 'px-3 pb-2' : 'pr-4 pb-4'), !fullBleed && immersive && 'p-4')}>
           {mode === 'deck' && <Deck />}
+          {mode === 'editor' && <Editor />}
           {mode === 'sounds' && <Sounds />}
-          {mode === 'whiteboard' && <Whiteboard immersive={immersive} setImmersive={setImmersive} />}
           {mode === 'control' && <Control />}
           {mode === 'audio' && <AudioView />}
           {mode === 'apps' && <AppsView />}
-          {mode === 'draw' && <Draw immersive={immersive} setImmersive={setImmersive} />}
-          {mode === 'display' && <Display />}
+          {mode === 'profiles' && <div className="h-full overflow-y-auto thin-scroll"><Profiles /></div>}
+          {mode === 'devices' && <div className="h-full overflow-y-auto thin-scroll"><Admin embedded /></div>}
           {mode === 'settings' && <Settings />}
         </main>
       </div>
@@ -92,11 +106,21 @@ function Connecting() {
 }
 
 function Rail({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+  if (isDesktop) return (
+    <nav className="w-[220px] shrink-0 flex flex-col gap-1 py-2 pl-3 pr-2">
+      {NAV.map((n) => (
+        <button key={n.id} onClick={() => setMode(n.id)} className={cx('tap h-11 px-3 rounded-xl flex items-center gap-3 text-[14px] font-medium text-left', mode === n.id ? 'bg-selected shadow-[0_8px_24px_-12px_var(--selected)]' : 'text-ink-2 hover:bg-surface')}>
+          <Icon name={n.icon} size={19} />{n.label}
+        </button>
+      ))}
+      <div className="flex-1" />
+      <button onClick={() => setMode('settings')} className={cx('tap h-11 px-3 rounded-xl flex items-center gap-3 text-[14px] font-medium', mode === 'settings' ? 'bg-selected' : 'text-ink-2 hover:bg-surface')}><Icon name="Settings" size={19} />Settings</button>
+    </nav>
+  )
   return (
     <nav className="w-[84px] shrink-0 flex flex-col items-center gap-1.5 py-2 px-3 overflow-y-auto no-scrollbar">
-      {NAV.map((n, i) => (
+      {NAV.map((n) => (
         <div key={n.id} className="contents">
-          {i === 4 && <div className="w-8 h-px bg-line my-1.5" />}
           <button onClick={() => setMode(n.id)} title={n.label}
             className={cx('tap relative w-14 h-14 shrink-0 rounded-2xl flex flex-col items-center justify-center gap-0.5', mode === n.id ? 'bg-selected shadow-[0_10px_28px_-10px_var(--selected)]' : 'text-ink-2 hover:bg-surface')}>
             <Icon name={n.icon} size={22} />

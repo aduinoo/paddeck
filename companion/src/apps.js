@@ -14,6 +14,22 @@ const APPS_PS1 = path.join(here, '..', 'scripts', 'apps.ps1');
 const ICON_DIR = path.join(MEDIA_DIR, 'appicons');
 fs.mkdirSync(ICON_DIR, { recursive: true });
 
+const CATEGORIES = [
+  ['Browsers', /chrome|edge|firefox|brave|opera|vivaldi|browser|arc\b/i],
+  ['Communication', /discord|teams|slack|zoom|skype|telegram|whatsapp|signal|outlook|thunderbird|messenger/i],
+  ['Office', /\b(word|excel|powerpoint|onenote|access|publisher|visio|project)\b|office|libreoffice|acrobat|pdf|notion|obsidian/i],
+  ['Creative', /photoshop|illustrator|premiere|after effects|lightroom|indesign|blender|krita|gimp|inkscape|figma|davinci|resolve|capcut|clipchamp|audacity|obs|upscayl|affinity|canva|paint/i],
+  ['Development', /code|studio|pycharm|intellij|webstorm|rider|eclipse|git|fork|postman|terminal|powershell|wireshark|heidisql|docker|node|python|deno|sql/i],
+  ['Games', /steam|epic games|riot|valorant|league|battle\.net|ubisoft|ea app|xbox|gog|minecraft|roblox|launcher/i],
+  ['Media', /spotify|youtube|music|vlc|media player|photos|netflix|itunes|tv\b|movies/i],
+  ['System', /explorer|task manager|settings|control panel|command prompt|registry|device manager|disk|snipping|calculator|notepad|services|event viewer/i],
+];
+function categorize(a) {
+  if (a.kind === 'steam' || /steamapps|riot games|epic games/i.test(a.path || '')) return 'Games';
+  for (const [c, re] of CATEGORIES) if (re.test(a.name)) return c;
+  return 'Utilities';
+}
+
 const norm = (s) => String(s || '').toLowerCase().replace(/\(.*?\)|x64|x86|64-bit|\d+(\.\d+)+|- en-us|version/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const SKIP_NAME = /^(uninstall|readme|help|website|support|release notes|license)|uninstall|\.(txt|chm|html?)$/i;
 const SKIP_PATH = /OfficeClickToRun|\\Package Cache\\|unins\d*\.exe$/i;
@@ -39,11 +55,14 @@ export class Apps {
             const seen = new Map();
             for (const a of raw) {
               if (!a.name || SKIP_NAME.test(a.name) || (a.path && SKIP_PATH.test(a.path))) continue;
+              if (a.source === 'folder' && /anticheat|redist|runtime|driver|sdk|nodejs|java|jdk|update|crash|helper|service|toolkit|framework/i.test(a.name)) continue;
               const key = norm(a.name);
               if (!key || seen.has(key)) continue;
               const id = a.appId || `path:${a.path}`;
-              seen.set(key, { id, name: a.name.replace(/\s+\d+(\.\d+){1,3}$/, ''), appId: a.appId || null, path: a.path || null, source: a.source,
-                kind: a.appId ? (a.appId.includes('!') ? 'store' : /^steam:/i.test(a.appId) ? 'steam' : 'desktop') : a.source });
+              const entry = { id, name: a.name.replace(/\s+\d+(\.\d+){1,3}$/, ''), appId: a.appId || null, path: a.path || null, source: a.source,
+                kind: a.appId ? (a.appId.includes('!') ? 'store' : /^steam:/i.test(a.appId) ? 'steam' : 'desktop') : a.source };
+              entry.category = categorize(entry);
+              seen.set(key, entry);
             }
             this.list = [...seen.values()].sort((x, y) => x.name.localeCompare(y.name));
             this.loadedAt = Date.now();

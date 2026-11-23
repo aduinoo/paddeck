@@ -49,6 +49,7 @@ export class Store {
     const def = defaultConfig();
     this.config = cfg ? mergeDefaults(cfg, def) : def;
     if (cfg && (cfg.version || 1) < 2) this.migrateTo2();
+    if (cfg && (this.config.version || 1) < 3) this.migrateTo21();
     if (!cfg) this.saveConfig();
     this.state = mergeDefaults(readJson(STATE_FILE, {}), { port: 47800, devices: [], autoStart: false, allowNewPairing: true });
     this.saveTimer = null;
@@ -65,6 +66,24 @@ export class Store {
     this.config.rev = (this.config.rev || 0) + 1;
     this.saveConfig();
     log.info('Configuration migrated to 2.0');
+  }
+
+  // 2.0 -> 2.1: Stream Deck focus. Remove settings and buttons of the retired drawing-tablet,
+  // whiteboard and second-monitor features; everything else is kept as-is.
+  migrateTo21() {
+    this.backup('pre-2.1-migration');
+    delete this.config.pen; delete this.config.display;
+    const gone = new Set(['draw', 'display', 'whiteboard']);
+    let removed = 0;
+    for (const prof of this.config.profiles) for (const pg of prof.pages || []) {
+      const before = pg.buttons.length;
+      pg.buttons = pg.buttons.filter((b) => !(b.action?.type === 'mode' && gone.has(b.action.mode)));
+      removed += before - pg.buttons.length;
+    }
+    this.config.version = 3;
+    this.config.rev = (this.config.rev || 0) + 1;
+    this.saveConfig();
+    log.info(`Configuration migrated to 2.1 (${removed} retired button(s) removed)`);
   }
 
   saveConfig() {

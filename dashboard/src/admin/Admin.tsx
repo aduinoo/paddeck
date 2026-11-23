@@ -7,7 +7,7 @@ const api = async (route: string, body?: any) => {
   const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Request failed'); return j
 }
 
-export function Admin() {
+export function Admin({ embedded }: { embedded?: boolean } = {}) {
   const [s, setS] = useState<any>(null)
   const [ip, setIp] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -23,8 +23,8 @@ export function Admin() {
   const left = Math.max(0, Math.round((s.expires - Date.now()) / 1000))
 
   return (
-    <div className="min-h-full p-8 max-w-[1200px] mx-auto">
-      <div className="app-bg" data-kind="aurora" />
+    <div className={embedded ? 'pb-4' : 'min-h-full p-8 max-w-[1200px] mx-auto'}>
+      {!embedded && <div className="app-bg" data-kind="aurora" />}
       <header className="flex items-center gap-3 mb-6">
         <img src="/favicon.svg" className="w-11 h-11" alt="" />
         <div className="flex-1"><h1 className="text-[24px] font-semibold tracking-tight">PadDeck Desktop</h1><div className="text-[13px] text-ink-3">v{s.version} · {s.host} · port {s.port} · {s.helperRunning ? 'native helper running' : 'native helper NOT running'}</div></div>
@@ -91,7 +91,6 @@ export function Admin() {
                 {[['data', 'Data'], ['scripts', 'Approved scripts'], ['backups', 'Backups'], ['media', 'Media']].map(([w, l]) => <Btn key={w} size="sm" icon="Folder" onClick={() => act('open', { which: w })}>{l}</Btn>)}
               </div>
               <div className="text-[12px] text-ink-2">Approved scripts ({s.scripts.length}): {s.scripts.join(', ') || 'none'}</div>
-              <div className="text-[12px] text-ink-2 mt-2">Second monitor: {s.display.sunshineInstalled ? `Apollo/Sunshine installed${s.display.hostRunning ? ', running' : ', not running'}` : 'not set up (run setup-second-monitor.ps1)'}{s.display.virtualDisplay ? ' · virtual display active' : ''}</div>
               <div className="text-[12px] text-ink-2 mt-1">Screens: {s.screens.map((x: any) => `${x.width}×${x.height}@${x.refresh}Hz${x.primary ? ' (main)' : ''}`).join(', ')}</div>
             </Panel>
           </div>

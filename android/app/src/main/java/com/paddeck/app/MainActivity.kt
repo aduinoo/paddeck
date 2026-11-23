@@ -40,13 +40,11 @@ import kotlin.concurrent.thread
 /**
  * PadDeck for Android. The interface is bundled in the APK (assets/web) and served locally by
  * WebViewAssetLoader; it talks to PadDeck Desktop on the PC over the local network.
- * Native parts: QR scanning, LAN discovery, file picking, immersive kiosk mode, and the
- * stylus capture layer (PenOverlay) that streams Smart Pen data straight to Windows.
+ * Native parts: QR scanning, LAN discovery, file picking and immersive kiosk mode.
  */
 class MainActivity : ComponentActivity() {
     lateinit var web: WebView
     private lateinit var root: FrameLayout
-    private var pen: PenOverlay? = null
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     private val scanLauncher = registerForActivityResult(ScanContract()) { r ->
@@ -109,8 +107,6 @@ class MainActivity : ComponentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
 
-    override fun onDestroy() { pen?.shutdown(); super.onDestroy() }
-
     /** Sends an event to the page: window 'paddeck-native' CustomEvent. */
     fun emit(obj: JSONObject) {
         val js = "window.dispatchEvent(new CustomEvent('paddeck-native',{detail:${obj}}))"
@@ -151,19 +147,12 @@ class MainActivity : ComponentActivity() {
     }
 
     inner class Bridge {
-        @JavascriptInterface fun version(): String = "2.0.0"
+        @JavascriptInterface fun version(): String = "2.1.0"
         @JavascriptInterface fun scanQr() = runOnUiThread {
             scanLauncher.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan the QR code shown in PadDeck Desktop").setBeepEnabled(false).setOrientationLocked(false))
         }
         @JavascriptInterface fun discover() = this@MainActivity.discover()
         @JavascriptInterface fun changePc() = emit(JSONObject().put("type", "changePc"))
-        @JavascriptInterface fun startPen(json: String) = runOnUiThread {
-            val cfg = JSONObject(json)
-            val p = pen ?: PenOverlay(this@MainActivity).also { pen = it; root.addView(it) }
-            p.configure(cfg)
-        }
-        @JavascriptInterface fun updatePenArea(json: String) = startPen(json)
-        @JavascriptInterface fun stopPen() = runOnUiThread { pen?.let { it.shutdown(); root.removeView(it) }; pen = null }
         @JavascriptInterface fun vibrate(ms: Int) {
             val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(ms.toLong(), VibrationEffect.DEFAULT_AMPLITUDE))

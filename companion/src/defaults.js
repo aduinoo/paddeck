@@ -91,7 +91,7 @@ function creativePage() {
     id: id('p'), name: 'Creative', icon: 'Palette', cols: 5, rows: 4,
     buttons: [
       B(0, 0, 'Photoshop', 'Image', { type: 'app', name: 'Photoshop' }, { appIcon: true }),
-      B(1, 0, 'Draw mode', 'PenTool', { type: 'mode', mode: 'draw' }, { bg: '#7c5cff' }),
+      B(1, 0, 'Screenshot', 'Camera', { type: 'system', op: 'screenshot' }),
       B(2, 0, 'Undo', 'Undo2', { type: 'keys', keys: ['ctrl', 'z'] }),
       B(3, 0, 'Redo', 'Redo2', { type: 'keys', keys: ['ctrl', 'shift', 'z'] }),
       B(4, 0, 'Save', 'Save', { type: 'keys', keys: ['ctrl', 's'] }),
@@ -184,7 +184,7 @@ export function defaultConfig() {
   const prof = defaultProfile('Default');
   const templates = templateProfiles();
   return {
-    version: 2,
+    version: 3,
     rev: 1,
     devicePrefs: {},
     activeProfileId: prof.id,
@@ -204,28 +204,6 @@ export function defaultConfig() {
     youtubeMusic: { url: 'https://music.youtube.com', preferApp: true, pinnedAppId: null },
     hardware: { mouseId: null, keyboardId: null, batteryThreshold: 20, lhmUrl: 'http://127.0.0.1:8085/data.json' },
     notifications: { battery: true, tabletDisconnected: true, audioDeviceChanged: true, micMuted: true, connectionQuality: true, appLaunched: false },
-    pen: {
-      target: 'primary', // 'primary' | 'all' | screen name e.g. \\.\DISPLAY1
-      area: { x: 0, y: 0, w: 1, h: 1 }, // portion of the tablet surface that maps to the target
-      keepAspect: true, curve: [0.25, 0.25, 0.75, 0.75], minPressure: 0, maxPressure: 1,
-      smoothing: 0, hover: true, palmRejection: true, leftHanded: false, showBar: true,
-      barrelAction: 'rightClick', eraserMode: 'auto', fingerGestures: true,
-      shortcuts: [
-        { label: 'Undo', keys: ['ctrl', 'z'], icon: 'Undo2' },
-        { label: 'Redo', keys: ['ctrl', 'shift', 'z'], icon: 'Redo2' },
-        { label: 'Brush −', keys: ['['], icon: 'Minus' },
-        { label: 'Brush +', keys: [']'], icon: 'Plus' },
-        { label: 'Zoom in', keys: ['ctrl', '='], icon: 'ZoomIn' },
-        { label: 'Zoom out', keys: ['ctrl', '-'], icon: 'ZoomOut' },
-        { label: 'Hand', keys: ['space'], icon: 'Hand', hold: true },
-        { label: 'Ctrl', keys: ['ctrl'], icon: 'ChevronUp', hold: true },
-        { label: 'Shift', keys: ['shift'], icon: 'ArrowBigUp', hold: true },
-        { label: 'Alt', keys: ['alt'], icon: 'Option', hold: true },
-        { label: 'Eraser', keys: ['e'], icon: 'Eraser' },
-        { label: 'Brush', keys: ['b'], icon: 'Brush' },
-      ],
-    },
-    display: { moonlightHost: null, preferredResolution: '2560x1600', fps: 60, bitrate: 30 },
   };
 }
 

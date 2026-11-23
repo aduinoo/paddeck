@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { activeProfile, exportConfig, importConfig, onBackups, send, toast, unpairLocal, updateConfig, useStore } from '../lib/store'
+import { activeProfile, exportConfig, importConfig, isDesktop, onBackups, send, toast, unpairLocal, updateConfig, useStore } from '../lib/store'
 import type { Profile } from '../lib/types'
 import { Btn, ColorPick, Confirm, Field, Icon, IconPicker, Modal, Panel, Slider, Toggle, cx, uid } from '../components/ui'
 import { KeysInput } from './ActionEditor'
@@ -12,11 +12,11 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ]
 
 export function Settings() {
-  const [tab, setTab] = useState<Tab>('profiles')
+  const [tab, setTab] = useState<Tab>(isDesktop ? 'theme' : 'profiles')
   return (
     <div className="h-full grid grid-cols-1 md:grid-cols-[220px_1fr] gap-[var(--gap)] min-h-0 overflow-y-auto md:overflow-visible">
       <div className="glass panel p-2 flex md:flex-col gap-1 h-fit overflow-x-auto no-scrollbar">
-        {TABS.map((t) => (
+        {TABS.filter((t) => !(isDesktop && (t.id === 'profiles' || t.id === 'about'))).map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} className={cx('tap h-12 px-3 rounded-2xl flex items-center gap-3 text-[14px] font-medium text-left shrink-0', tab === t.id ? 'bg-selected' : 'text-ink-2')}><Icon name={t.icon} size={18} />{t.label}</button>
         ))}
       </div>
@@ -33,7 +33,7 @@ export function Settings() {
   )
 }
 
-function Profiles() {
+export function Profiles() {
   const config = useStore((s) => s.config)!
   const [edit, setEdit] = useState<Profile | null>(null)
   const [del, setDel] = useState<Profile | null>(null)

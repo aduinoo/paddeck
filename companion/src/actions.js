@@ -145,7 +145,7 @@ export class Actions {
         this.store.saveConfigSoon();
         return { message: `Profile: ${prof.name}`, configChanged: true };
       }
-      case 'page': case 'mode': case 'none': return {}; // handled on the tablet
+      case 'page': case 'mode': case 'folder': case 'none': return {}; // handled on the device
       default: throw new Error(`Unknown action type: ${action.type}`);
     }
   }

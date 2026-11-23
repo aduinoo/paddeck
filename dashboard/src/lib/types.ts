@@ -4,12 +4,13 @@ export interface DeckButton {
   id: string; x: number; y: number; w: number; h: number
   label: string; icon?: string; image?: string; appIcon?: boolean
   bg?: string; bg2?: string; fg?: string; emoji?: string; fileIcon?: boolean; action: Action
+  iconPos?: 'top' | 'left' | 'right' | 'center'; fontSize?: number; radius?: number; gradAngle?: number; hideLabel?: boolean; activeFg?: string
   confirm?: boolean; toggle?: boolean
   bind?: 'micMuted' | 'outputMuted' | 'focus' | 'mediaPlaying' | string
   activeBg?: string; activeIcon?: string; activeLabel?: string
 }
 
-export interface DeckPage { id: string; name: string; icon: string; cols: number; rows: number; buttons: DeckButton[] }
+export interface DeckPage { id: string; name: string; icon: string; cols: number; rows: number; buttons: DeckButton[]; folder?: boolean; parent?: string }
 
 export interface Sound { id: string; name: string; file: string; icon: string; emoji?: string; color: string; volume: number; category?: string }
 export interface SoundPage { id: string; name: string; sounds: Sound[] }
@@ -33,13 +34,6 @@ export interface AudioProfile {
   volume: number | null; micVolume: number | null; micMuted: boolean | null; systemMuted: boolean | null
 }
 
-export interface PenShortcut { label: string; keys: string[]; icon: string; hold?: boolean }
-export interface PenSettings {
-  target: string; area: { x: number; y: number; w: number; h: number }; keepAspect: boolean
-  curve: number[]; minPressure: number; maxPressure: number; smoothing: number; hover: boolean
-  palmRejection: boolean; leftHanded: boolean; showBar: boolean; barrelAction: string; eraserMode: string
-  fingerGestures: boolean; shortcuts: PenShortcut[]; gamma?: number; rotate?: number
-}
 
 export interface Config {
   version: number; rev: number; activeProfileId: string; activeAudioProfileId?: string
@@ -51,8 +45,6 @@ export interface Config {
   youtubeMusic: { url: string; preferApp: boolean; pinnedAppId: string | null }
   hardware: { mouseId: string | null; keyboardId: string | null; batteryThreshold: number; lhmUrl: string }
   notifications: Record<string, boolean>
-  pen: PenSettings
-  display: { moonlightHost: string | null; preferredResolution: string; fps: number; bitrate: number }
 }
 
 export interface AudioDevice { id: string; name: string; description?: string; isDefault: boolean; isDefaultComm: boolean; volume: number | null; muted: boolean | null }

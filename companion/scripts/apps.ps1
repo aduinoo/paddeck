@@ -36,4 +36,14 @@ foreach ($d in $desktops) {
     $out.Add([pscustomobject]@{ name = [IO.Path]::GetFileNameWithoutExtension($f.Name); appId = $null; path = $f.FullName; source = 'desktop' })
   }
 }
+# 4. Common installation directories: <root>\<App>\<App>.exe (or the largest exe one level down)
+$roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, (Join-Path $env:LOCALAPPDATA 'Programs')) | Where-Object { $_ -and (Test-Path $_) }
+foreach ($root in $roots) {
+  foreach ($dir in Get-ChildItem $root -Directory) {
+    if ($dir.Name -match '(?i)^(common files|windows|microsoft|internet explorer|windowsapps|modifiablewindowsapps|reference assemblies|dotnet|msbuild|uninstall information|installshield)') { continue }
+    $exe = Get-ChildItem $dir.FullName -Filter "$($dir.Name).exe" -File -Depth 1 | Select-Object -First 1
+    if (-not $exe) { $exe = Get-ChildItem $dir.FullName -Filter *.exe -File | Where-Object { $_.Name -notmatch '(?i)(unins|setup|install|update|crash|helper|report|elevate|squirrel)' } | Sort-Object Length -Descending | Select-Object -First 1 }
+    if ($exe) { $out.Add([pscustomobject]@{ name = $dir.Name; appId = $null; path = $exe.FullName; source = 'folder' }) }
+  }
+}
 $out | ConvertTo-Json -Compress -Depth 3

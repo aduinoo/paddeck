@@ -6,14 +6,12 @@ import type { Action, Config, PcState, Profile } from './types'
 
 export type ConnStatus = 'unpaired' | 'connecting' | 'connected' | 'disconnected'
 export interface Toast { id: number; text: string; level: 'info' | 'warn' | 'error' | 'success' }
-export interface AppEntry { id: string; name: string; appId: string | null; path: string | null; kind: string; source?: string }
+export interface AppEntry { id: string; name: string; appId: string | null; path: string | null; kind: string; source?: string; category?: string }
 export interface DevicePrefs { layout?: 'auto' | 'phone' | 'tablet'; profileId?: string | null; nav?: string[]; themeOverride?: boolean; theme?: any }
 
 // Native bridge exposed by the PadDeck Android app (undefined in a normal browser).
 export interface AndroidBridge {
-  version(): string; scanQr(): void; discover(): void; changePc(): void
-  startPen(json: string): void; stopPen(): void; updatePenArea(json: string): void
-  savePng?(b64: string, name: string): void; vibrate?(ms: number): void
+  version(): string; scanQr(): void; discover(): void; changePc(): void; vibrate?(ms: number): void
 }
 export const android: AndroidBridge | undefined = (globalThis as any).PadDeckAndroid
 
@@ -30,6 +28,9 @@ interface Store {
   deviceName: string | null
   deviceId: string | null
   server: string
+  paths: Record<string, boolean>
+  canUndo: boolean
+  canRedo: boolean
 }
 
 const TOKEN_KEY = 'paddeck.token'
@@ -39,6 +40,8 @@ const ls = {
   del(k: string) { try { localStorage.removeItem(k) } catch { /* ignore */ } },
 }
 
+// PadDeck Desktop's own window (Electron) runs the same UI as the editor.
+export const isDesktop = /Electron/i.test(navigator.userAgent) || new URLSearchParams(location.search).has('desktop')
 // Same-origin when the PC serves the page; otherwise the stored PC address.
 const servedByPc = /^https?:$/.test(location.protocol) && !/appassets\.androidplatform\.net$/.test(location.hostname) && location.port !== '5173'
 const initialServer = servedByPc ? location.origin : (ls.get('paddeck.server') || '')
@@ -46,8 +49,9 @@ const initialServer = servedByPc ? location.origin : (ls.get('paddeck.server') |
 let state: Store = {
   status: ls.get(TOKEN_KEY) && initialServer ? 'connecting' : 'unpaired', latency: null, config: null, pc: null,
   toasts: [], apps: [], scripts: [], icons: {}, playing: {}, deviceName: ls.get('paddeck.deviceName'), deviceId: ls.get('paddeck.deviceId'),
-  server: initialServer,
+  server: initialServer, paths: {}, canUndo: false, canRedo: false,
 }
+if (isDesktop) state.status = 'connecting'
 const listeners = new Set<() => void>()
 function set(patch: Partial<Store>) { state = { ...state, ...patch }; listeners.forEach((l) => l()) }
 
@@ -77,7 +81,16 @@ let wasConnected = false
 
 export function token() { return ls.get(TOKEN_KEY) }
 
+let desktopAuthTried = false
 export function connect() {
+  if (isDesktop && !desktopAuthTried) {
+    // The desktop editor is on the PC itself: fetch a local device token from the loopback-only API.
+    desktopAuthTried = true
+    fetch('/api/admin/desktop-token', { method: 'POST', headers: { 'X-PadDeck-Admin': '1', 'Content-Type': 'application/json' }, body: '{}' })
+      .then((r) => r.json()).then((j) => { ls.set(TOKEN_KEY, j.token); connect() })
+      .catch(() => setTimeout(() => { desktopAuthTried = false; connect() }, 1000))
+    return
+  }
   const t = token()
   if (!t || !state.server) { set({ status: 'unpaired' }); return }
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
@@ -90,7 +103,7 @@ export function connect() {
     if (ws !== sock) return
     ws = null
     clearInterval(pingTimer)
-    if (ev.code === 4001) { ls.del(TOKEN_KEY); set({ status: 'unpaired', config: null, pc: null }); toast('This device was unpaired from the PC', 'warn'); return }
+    if (ev.code === 4001) { ls.del(TOKEN_KEY); if (isDesktop) { desktopAuthTried = false; setTimeout(connect, 300); return } set({ status: 'unpaired', config: null, pc: null }); toast('This device was unpaired from the PC', 'warn'); return }
     if (wasConnected && state.config?.notifications?.tabletDisconnected !== false) toast('PC connection lost – reconnecting…', 'warn')
     wasConnected = false
     set({ status: 'disconnected', latency: null })
@@ -134,7 +147,8 @@ function handle(m: any) {
       set({ latency: lat })
       break
     }
-    case 'config': set({ config: m.config }); if (m.conflict) toast('Settings were changed on another device – reloaded', 'warn'); break
+    case 'config': onConfig(m); break
+    case 'paths': set({ paths: { ...state.paths, ...m.exists } }); break
     case 'state': set({ pc: m.full || !state.pc ? { ...(state.pc || {}), ...m.patch } : { ...state.pc, ...m.patch } }); break
     case 'result': { const cb = pending.get(m.id); if (cb) { pending.delete(m.id); cb(m) } break }
     case 'notice': toast(m.text, m.level === 'error' ? 'error' : m.level === 'warn' ? 'warn' : 'info', m.level === 'error' ? 4500 : 2600); break
@@ -172,16 +186,75 @@ export function ask<T = any>(msg: Record<string, any>, replyType: string, timeou
   })
 }
 
-// ------------------------------------------------------------ config editing
+// ------------------------------------------------------------ config editing & sync
+// Every edit is a mutation function. Unacknowledged mutations are kept so that when another
+// device saves first (or edits arrive while ours are in flight) they are replayed on top of the
+// newer configuration instead of silently overwriting it.
+const clientId = Math.random().toString(36).slice(2)
+let pendingMuts: ((c: Config) => void)[] = []
+let sentCount = 0
 let saveTimer: number | undefined
-export function updateConfig(mut: (c: Config) => void) {
+const undoStack: Config[] = []
+const redoStack: Config[] = []
+let lastUndoPush = 0
+
+function scheduleSave() {
+  clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => {
+    if (!state.config || !pendingMuts.length) return
+    if (send({ type: 'config.set', config: state.config, baseRev: state.config.rev, clientId })) sentCount = pendingMuts.length
+  }, 250)
+}
+
+function onConfig(m: any) {
+  if (m.by === clientId && !m.conflict) {
+    pendingMuts.splice(0, sentCount); sentCount = 0
+  } else if (m.conflict) sentCount = 0
+  let next: Config = m.config
+  if (pendingMuts.length) {
+    next = structuredClone(m.config)
+    for (const f of pendingMuts) { try { f(next) } catch { /* edit no longer applies */ } }
+    if (m.conflict || m.by !== clientId) toast(`Merged with changes made on ${m.device || m.by || 'another device'}`, 'info')
+    scheduleSave()
+  } else if (m.by && m.by !== clientId && m.device && m.device !== state.deviceName && state.config) {
+    // quiet: live sync from another device
+  }
+  set({ config: next })
+}
+
+export function updateConfig(mut: (c: Config) => void, opts: { history?: boolean } = {}) {
   if (!state.config) return
+  if (opts.history !== false) {
+    const now = Date.now()
+    if (now - lastUndoPush > 600) { undoStack.push(state.config); if (undoStack.length > 60) undoStack.shift(); redoStack.length = 0 }
+    lastUndoPush = now
+  }
   const next: Config = structuredClone(state.config)
   mut(next)
-  set({ config: next })
-  clearTimeout(saveTimer)
-  const base = state.config.rev
-  saveTimer = window.setTimeout(() => send({ type: 'config.set', config: next, baseRev: base }), 250)
+  pendingMuts.push(mut)
+  set({ config: next, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 })
+  scheduleSave()
+}
+
+function restoreSnapshot(snap: Config) {
+  const keep = structuredClone(snap)
+  updateConfig((c) => { const rev = c.rev; Object.keys(c).forEach((k) => delete (c as any)[k]); Object.assign(c, structuredClone(keep), { rev }) }, { history: false })
+}
+export function undo() {
+  const snap = undoStack.pop(); if (!snap || !state.config) return
+  redoStack.push(state.config); restoreSnapshot(snap)
+  set({ canUndo: undoStack.length > 0, canRedo: true }); toast('Undone', 'info', 1200)
+}
+export function redo() {
+  const snap = redoStack.pop(); if (!snap || !state.config) return
+  undoStack.push(state.config); restoreSnapshot(snap)
+  set({ canUndo: true, canRedo: redoStack.length > 0 })
+}
+
+// Tiles that open files/folders ask the PC whether their targets still exist.
+export function checkPaths(paths: string[]) {
+  const list = [...new Set(paths.filter(Boolean))]
+  if (list.length) send({ type: 'paths.check', paths: list })
 }
 
 // Per-device preferences (layout, profile, theme override) live in the shared config so they
@@ -275,14 +348,15 @@ export function requestIcon(key: string, ref: { appId?: string | null; name?: st
 }
 
 // ------------------------------------------------------------ layout (phone vs tablet)
-function computeLayout(): 'phone' | 'tablet' {
+function computeLayout(): 'phone' | 'tablet' | 'desktop' {
+  if (isDesktop) return 'desktop'
   const pref = devicePrefs(state.config).layout
   if (pref === 'phone' || pref === 'tablet') return pref
   return Math.min(window.innerWidth, window.innerHeight) < 600 || window.innerWidth < 760 ? 'phone' : 'tablet'
 }
 const layoutListeners = new Set<() => void>()
 if (typeof window !== 'undefined') window.addEventListener('resize', () => layoutListeners.forEach((l) => l()))
-export function useLayout(): 'phone' | 'tablet' {
+export function useLayout(): 'phone' | 'tablet' | 'desktop' {
   useStore((s) => devicePrefs(s.config).layout)
   return useSyncExternalStore((l) => { layoutListeners.add(l); return () => layoutListeners.delete(l) }, computeLayout)
 }

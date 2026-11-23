@@ -1,7 +1,7 @@
 // PadDeck Desktop: the Windows application. Hosts the PadDeck companion (local network server,
 // native Windows integration) in the background, with a tray icon, a settings window, the
 // native Windows file picker for paired devices, and start-with-Windows.
-import { app, BrowserWindow, Tray, Menu, Notification, dialog, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, Tray, Menu, Notification, dialog, nativeImage, shell, screen } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { execFileSync, execFile } from 'node:child_process';
@@ -44,7 +44,7 @@ function migrateFromV1() {
 function showWindow(hash = '') {
   if (!win || win.isDestroyed()) {
     win = new BrowserWindow({
-      width: 1180, height: 820, minWidth: 900, minHeight: 620, title: 'PadDeck', icon: ICON, show: false,
+      width: Math.min(1600, screen.getPrimaryDisplay().workAreaSize.width - 40), height: Math.min(960, screen.getPrimaryDisplay().workAreaSize.height - 40), minWidth: 1100, minHeight: 680, title: 'PadDeck', icon: ICON, show: false,
       backgroundColor: '#07070d', autoHideMenuBar: true,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
     });
@@ -53,7 +53,7 @@ function showWindow(hash = '') {
     win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
     win.once('ready-to-show', () => win.show());
   }
-  const url = `http://localhost:${port}/admin${hash}`;
+  const url = `http://localhost:${port}/?desktop=1${hash}`;
   const load = (tries = 0) => win.loadURL(url).catch(() => { if (tries < 40) setTimeout(() => load(tries + 1), 250); });
   load();
   if (win.isVisible()) win.focus(); else win.once('ready-to-show', () => win.focus());

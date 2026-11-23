@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { activeProfile, devicePrefs, mediaUrl, setDevicePrefs, toast, updateConfig, upload, useStore } from '../lib/store'
 import type { Theme } from '../lib/types'
 import { PRESETS, themeColors, type ThemeColors } from '../lib/theme'
-import { Btn, Field, Icon, Panel, Segmented, Slider, Toggle, cx } from '../components/ui'
-import { HexInput } from './Whiteboard'
+import { Btn, Field, HexInput, Icon, Panel, Segmented, Slider, Toggle, cx } from '../components/ui'
 
 const FONTS = ['Inter', 'system-ui', 'Segoe UI', 'Roboto', 'Georgia', 'ui-monospace']
 const COLOR_FIELDS: { key: keyof ThemeColors; label: string }[] = [

@@ -25,6 +25,7 @@ export const ACTION_TYPES: { type: string; label: string; icon: string; group: s
   { type: 'focus', label: 'Focus mode', icon: 'Target', group: 'System' },
   { type: 'discord', label: 'Discord', icon: 'MessageCircle', group: 'System' },
   { type: 'page', label: 'Go to page', icon: 'Files', group: 'PadDeck' },
+  { type: 'folder', label: 'Open folder', icon: 'Folder', group: 'PadDeck' },
   { type: 'profile', label: 'Switch profile', icon: 'Users', group: 'PadDeck' },
   { type: 'mode', label: 'Switch mode', icon: 'LayoutGrid', group: 'PadDeck' },
 ]
@@ -35,7 +36,7 @@ export const SYSTEM_OPS = [
   ['sleep', 'Sleep'], ['restart', 'Restart'], ['shutdown', 'Shut down'], ['signout', 'Sign out'], ['cancel-shutdown', 'Cancel shutdown'],
 ]
 const MEDIA_OPS = [['toggle', 'Play / pause'], ['play', 'Play'], ['pause', 'Pause'], ['next', 'Next track'], ['prev', 'Previous track'], ['stop', 'Stop']]
-const MODES = [['deck', 'Stream Deck'], ['sounds', 'Soundboard'], ['whiteboard', 'Whiteboard'], ['control', 'Control Centre'], ['audio', 'Audio'], ['apps', 'Apps'], ['draw', 'Drawing tablet'], ['display', 'Second monitor']]
+const MODES = [['deck', 'Stream Deck'], ['sounds', 'Soundboard'], ['control', 'Control Centre'], ['audio', 'Audio'], ['apps', 'Apps']]
 
 export const parseKeys = (s: string) => s.split(/\s*\+\s*/).map((k) => k.trim().toLowerCase()).filter(Boolean)
 export const fmtKeys = (k?: string[]) => (k || []).map((x) => (x.length === 1 ? x.toUpperCase() : x[0].toUpperCase() + x.slice(1))).join(' + ')
@@ -159,7 +160,8 @@ export function ActionEditor({ action, onChange }: { action: Action; onChange: (
         </Field>
       )}
       {action.type === 'profile' && <Field label="Profile" hint="Switches the profile on the device you press it on"><Sel value={action.profileId || ''} onChange={(v) => set({ profileId: v })} options={[['', 'Choose…'], ...config.profiles.map((p) => [p.id, p.name] as [string, string])]} /></Field>}
-      {action.type === 'page' && <Field label="Page"><Sel value={action.pageId || ''} onChange={(v) => set({ pageId: v })} options={[['', 'Choose…'], ...prof.pages.map((p) => [p.id, p.name] as [string, string])]} /></Field>}
+      {action.type === 'page' && <Field label="Page"><Sel value={action.pageId || ''} onChange={(v) => set({ pageId: v })} options={[['', 'Choose…'], ['next', 'Next page'], ['prev', 'Previous page'], ['back', 'Back (leave folder)'], ...prof.pages.filter((p) => !p.folder).map((p) => [p.id, p.name] as [string, string])]} /></Field>}
+      {action.type === 'folder' && <Field label="Folder" hint="Create folders in the editor (Add → Folder); this tile opens one"><Sel value={action.pageId || ''} onChange={(v) => set({ pageId: v })} options={[['', 'Choose…'], ...prof.pages.filter((p) => p.folder).map((p) => [p.id, p.name] as [string, string])]} /></Field>}
       {action.type === 'mode' && <Field label="Mode"><Sel value={action.mode || 'deck'} onChange={(v) => set({ mode: v })} options={MODES as [string, string][]} /></Field>}
       <FilePicker open={!!browse} mode={browse === 'dir' ? 'dir' : browse === 'any' ? 'any' : 'file'} title={browse === 'app' ? 'Choose a program or shortcut' : undefined} onClose={() => setBrowse(null)}
         onPick={(p) => { if (browse === 'app') set({ path: p, appId: null, name: baseName(p) }); else set({ path: p, name: baseName(p) }) }} />

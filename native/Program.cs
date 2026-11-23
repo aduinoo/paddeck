@@ -51,7 +51,7 @@ namespace PadDeck
                 catch { continue; }
                 string cmd = Str(req, "cmd");
                 // Low-latency, order-sensitive commands run inline; everything else on the pool.
-                if (cmd == "pen" || cmd == "touch" || cmd.StartsWith("keys.")) Handle(req);
+                if (cmd.StartsWith("keys.")) Handle(req);
                 else ThreadPool.QueueUserWorkItem(_ => Handle(req));
             }
             Input.Shutdown();
@@ -80,7 +80,7 @@ namespace PadDeck
                 var inner = ex; while (inner.InnerException != null) inner = inner.InnerException;
                 res["ok"] = false; res["error"] = inner.Message;
             }
-            // pen/touch are fire-and-forget unless they fail
+            // fire-and-forget commands (no id) only answer on failure
             if (id == null && (bool)res["ok"]) return;
             Write(res);
         }
@@ -102,10 +102,6 @@ namespace PadDeck
                 case "keys.state": return Input.KeyState(Str(a, "key"), Bool(a, "down"));
                 case "keys.text": return Input.Text(Str(a, "text") ?? "");
                 case "mouse.scroll": return Input.Scroll((int)Num(a, "dy", 0), (int)Num(a, "dx", 0));
-                case "pen":
-                    return Input.Pen(Str(a, "phase"), (int)Num(a, "x", 0), (int)Num(a, "y", 0), Num(a, "p", 0),
-                        (int)Num(a, "tx", 0), (int)Num(a, "ty", 0), (int)Num(a, "r", 0), Bool(a, "b"), Bool(a, "e"));
-                case "touch": return Input.Touch(ToList(Obj(a, "contacts")));
                 case "media.state": return Media.State(Bool(a, "art"));
                 case "media.control": return Media.Control(Str(a, "appId"), Str(a, "action"), Num(a, "position", 0));
                 case "sound.play": return Sound.Play(Str(a, "key"), Str(a, "path"), Num(a, "volume", 100), Bool(a, "exclusive"));
@@ -116,8 +112,6 @@ namespace PadDeck
                 case "sys.shellExecute": return SystemOps.ShellExecute(Str(a, "file"), Str(a, "args"), Str(a, "verb"), Str(a, "cwd"));
                 case "sys.shellIcon": return SystemOps.ShellIcon(Str(a, "name"), (int)Num(a, "size", 96));
                 case "sys.net": return SystemOps.Net();
-                case "sys.cursor": return SystemOps.Cursor();
-                case "sys.pointerDevices": return SystemOps.PointerDevices();
                 case "sys.drives": return SystemOps.Drives();
                 case "sys.lock": return SystemOps.Lock();
                 case "sys.sleep": return SystemOps.Sleep();
