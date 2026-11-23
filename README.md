@@ -8,9 +8,13 @@
 
 Tap big, colourful buttons on your tablet to mute your microphone, change the volume, control music, open apps, take screenshots, play sound effects and more — and design every button from a simple editor on your PC.
 
-[Download](../../releases) · [User Guide](docs/USER_GUIDE.md) · [Installation](docs/INSTALLATION.md) · [Connecting your tablet](docs/CONNECTION_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [FAQ](docs/FAQ.md) · [Video tutorials](#video-tutorials)
+[Download](../../releases) · [User Guide](docs/USER_GUIDE.md) · [Installation](docs/INSTALLATION.md) · [Connecting your tablet](docs/CONNECTION_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [FAQ](docs/FAQ.md) · [Video tutorials](#video-tutorials) · [▶️ YouTube](https://youtu.be/_cetggr3Q60)
 
-<img src="docs/images/tablet-home.png" width="820" alt="PadDeck on a tablet showing the Home page of buttons">
+### ▶️ Watch the full tutorial on YouTube
+
+<a href="https://youtu.be/_cetggr3Q60"><img src="docs/images/youtube-thumbnail.png" width="820" alt="Watch the PadDeck tutorial on YouTube"></a>
+
+*Click the image to watch: install, pair, customize and use PadDeck in 11 minutes.*
 
 </div>
 
@@ -112,7 +116,9 @@ One-tap switching of speakers/headphones and microphones, master and microphone 
 
 ### Video tutorials
 
-Narrated walkthroughs with subtitles (MP4 + `.srt`) live in [`docs/videos/`](docs/videos). The script with timestamps is in [`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md).
+**Watch the complete tutorial on YouTube: https://youtu.be/_cetggr3Q60**
+
+The same narrated walkthroughs, with subtitles (MP4 + `.srt`), are also in [`docs/videos/`](docs/videos). The script with timestamps is in [`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md).
 
 | # | Video | Length |
 |---|---|---|
