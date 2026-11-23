@@ -19,8 +19,8 @@ export function AudioView() {
   const mic = pc.audio.inputs.find((d) => d.isDefault)
 
   return (
-    <div className="h-full grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-[var(--gap)] min-h-0">
-      <div className="flex flex-col gap-[var(--gap)] min-h-0 overflow-y-auto thin-scroll pr-1">
+    <div className="h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-[var(--gap)] min-h-0 overflow-y-auto lg:overflow-visible">
+      <div className="flex flex-col gap-[var(--gap)] lg:min-h-0 lg:overflow-y-auto thin-scroll lg:pr-1">
         <Panel title="Master volume" icon="Volume2" right={<span className="text-[12px] text-ink-3 truncate max-w-[220px]">{out?.name}</span>}>
           <div className="flex items-center gap-4">
             <IconBtn icon={out?.muted ? 'VolumeX' : 'Volume2'} size={56} active={!!out?.muted} onClick={() => run({ type: 'volume', mode: 'mute' }, { quiet: true })} label="Mute" />

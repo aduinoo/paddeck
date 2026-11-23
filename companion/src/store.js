@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { defaultConfig } from './defaults.js';
+import { defaultConfig, templateProfiles } from './defaults.js';
 import { log } from './log.js';
 
 export const DATA_DIR = process.env.PADDECK_DATA || path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'PadDeck');
@@ -48,10 +48,23 @@ export class Store {
     }
     const def = defaultConfig();
     this.config = cfg ? mergeDefaults(cfg, def) : def;
+    if (cfg && (cfg.version || 1) < 2) this.migrateTo2();
     if (!cfg) this.saveConfig();
     this.state = mergeDefaults(readJson(STATE_FILE, {}), { port: 47800, devices: [], autoStart: false, allowNewPairing: true });
     this.saveTimer = null;
     this.lastBackupDay = null;
+  }
+
+  // 1.x -> 2.0: keep everything, add template profiles whose names don't exist yet.
+  migrateTo2() {
+    this.backup('pre-2.0-migration');
+    const names = new Set(this.config.profiles.map((p) => p.name.toLowerCase()));
+    for (const t of templateProfiles()) if (!names.has(t.name.toLowerCase())) this.config.profiles.push(t);
+    this.config.devicePrefs = this.config.devicePrefs || {};
+    this.config.version = 2;
+    this.config.rev = (this.config.rev || 0) + 1;
+    this.saveConfig();
+    log.info('Configuration migrated to 2.0');
   }
 
   saveConfig() {

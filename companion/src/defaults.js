@@ -141,6 +141,35 @@ export function defaultTheme() {
   };
 }
 
+function musicPage() {
+  return {
+    id: id('p'), name: 'Music', icon: 'Music2', cols: 5, rows: 3,
+    buttons: [
+      B(0, 0, 'YouTube Music', 'Music', { type: 'ytmusic' }, { bg: '#dc2626', w: 2, h: 2 }),
+      B(2, 0, 'Previous', 'SkipBack', { type: 'media', action: 'prev' }),
+      B(3, 0, 'Play / Pause', 'Play', { type: 'media', action: 'toggle' }, { bind: 'mediaPlaying', activeIcon: 'Pause', bg: '#ec4899' }),
+      B(4, 0, 'Next', 'SkipForward', { type: 'media', action: 'next' }),
+      B(2, 1, 'Volume −', 'Volume1', { type: 'volume', mode: 'down', step: 5 }),
+      B(3, 1, 'Mute', 'VolumeX', { type: 'volume', mode: 'mute' }, { bind: 'outputMuted', activeBg: '#dc2626' }),
+      B(4, 1, 'Volume +', 'Volume2', { type: 'volume', mode: 'up', step: 5 }),
+      B(0, 2, 'Music audio', 'Headphones', { type: 'audioProfile', id: 'ap_music' }),
+      B(1, 2, 'Silent', 'VolumeX', { type: 'audioProfile', id: 'ap_silent' }),
+    ],
+  };
+}
+
+// Template profiles added for 2.0 (Work, Gaming, Productivity, Creative, Music).
+export function templateProfiles() {
+  const mk = (name, icon, color, preset, pages) => ({ ...defaultProfile(name), icon, color, theme: { ...defaultTheme(), preset, accent: color }, pages });
+  return [
+    mk('Work', 'Briefcase', '#0ea5e9', 'midnight', [workPage(), homePage()]),
+    mk('Gaming', 'Gamepad2', '#22c55e', 'amoled', [gamingPage(), homePage()]),
+    mk('Productivity', 'ListChecks', '#f97316', 'minimal', [workPage(), homePage()]),
+    mk('Creative', 'Palette', '#a855f7', 'dark', [creativePage(), homePage()]),
+    mk('Music', 'Music2', '#ec4899', 'dark', [musicPage(), homePage()]),
+  ];
+}
+
 export function defaultProfile(name = 'Default') {
   return {
     id: id('prof'), name, icon: 'User', color: '#7c5cff',
@@ -153,11 +182,13 @@ export function defaultProfile(name = 'Default') {
 
 export function defaultConfig() {
   const prof = defaultProfile('Default');
+  const templates = templateProfiles();
   return {
-    version: 1,
+    version: 2,
     rev: 1,
+    devicePrefs: {},
     activeProfileId: prof.id,
-    profiles: [prof],
+    profiles: [prof, ...templates],
     audioProfiles: [
       { id: 'ap_gaming', name: 'Gaming', icon: 'Gamepad2', color: '#22c55e', output: null, input: null, volume: 70, micVolume: null, micMuted: false, systemMuted: false },
       { id: 'ap_work', name: 'Work', icon: 'Briefcase', color: '#0ea5e9', output: null, input: null, volume: 45, micVolume: null, micMuted: null, systemMuted: false },

@@ -1,28 +1,35 @@
 package com.paddeck.app
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.WebViewAssetLoader
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -31,22 +38,36 @@ import java.net.SocketTimeoutException
 import kotlin.concurrent.thread
 
 /**
- * PadDeck for Android: a full-screen kiosk shell around the dashboard served by the PC companion.
- * - Finds the PC automatically (UDP broadcast "PADDECK_DISCOVER" on port 47801).
- * - Keeps the screen on, hides system bars (immersive), survives Wi-Fi drops.
- * - Stylus MotionEvents (pressure, tilt, hover, buttons) reach the page as Pointer Events,
- *   which PadDeck's drawing-tablet mode streams to Windows.
+ * PadDeck for Android. The interface is bundled in the APK (assets/web) and served locally by
+ * WebViewAssetLoader; it talks to PadDeck Desktop on the PC over the local network.
+ * Native parts: QR scanning, LAN discovery, file picking, immersive kiosk mode, and the
+ * stylus capture layer (PenOverlay) that streams Smart Pen data straight to Windows.
  */
-class MainActivity : Activity() {
-    private lateinit var web: WebView
-    private lateinit var status: TextView
-    private val prefs by lazy { getSharedPreferences("paddeck", Context.MODE_PRIVATE) }
+class MainActivity : ComponentActivity() {
+    lateinit var web: WebView
+    private lateinit var root: FrameLayout
+    private var pen: PenOverlay? = null
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+
+    private val scanLauncher = registerForActivityResult(ScanContract()) { r ->
+        if (r.contents != null) emit(JSONObject().put("type", "qr").put("text", r.contents))
+    }
+    private val fileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val cb = fileCallback ?: return@registerForActivityResult
+        fileCallback = null
+        cb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data))
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        val assets = WebViewAssetLoader.Builder()
+            .setHttpAllowed(true)
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
 
         web = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#07070D"))
@@ -56,30 +77,25 @@ class MainActivity : Activity() {
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.setSupportZoom(false)
             settings.builtInZoomControls = false
-            isHapticFeedbackEnabled = true
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             overScrollMode = View.OVER_SCROLL_NEVER
-            webChromeClient = WebChromeClient()
+            isHapticFeedbackEnabled = true
             webViewClient = object : WebViewClient() {
-                override fun onReceivedError(view: WebView, req: WebResourceRequest, err: WebResourceError) {
-                    if (req.isForMainFrame) showStatus("Can't reach the PC (${err.description}). Searching again…").also { discover() }
+                override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? = assets.shouldInterceptRequest(req.url)
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                    fileCallback?.onReceiveValue(null)
+                    fileCallback = cb
+                    return try { fileLauncher.launch(params.createIntent()); true } catch (e: Exception) { fileCallback = null; false }
                 }
-                override fun onPageFinished(view: WebView, url: String) { status.visibility = View.GONE }
             }
             addJavascriptInterface(Bridge(), "PadDeckAndroid")
         }
-        status = TextView(this).apply {
-            setTextColor(Color.parseColor("#A5A6B8")); textSize = 18f; gravity = Gravity.CENTER
-            setPadding(64, 64, 64, 64)
-            setOnLongClickListener { askForAddress(); true }
-        }
-        setContentView(FrameLayout(this).apply {
-            addView(web, FrameLayout.LayoutParams(-1, -1))
-            addView(status, FrameLayout.LayoutParams(-1, -1))
-        })
+        root = FrameLayout(this).apply { addView(web, FrameLayout.LayoutParams(-1, -1)) }
+        setContentView(root)
         hideSystemBars()
-
-        val saved = prefs.getString("url", null)
-        if (saved != null) load(saved) else discover()
+        web.loadUrl("http://appassets.androidplatform.net/assets/web/index.html")
     }
 
     private fun hideSystemBars() {
@@ -90,61 +106,67 @@ class MainActivity : Activity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideSystemBars() }
 
-    private fun load(url: String) { showStatus("Connecting to $url"); web.loadUrl(url) }
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
 
-    private fun showStatus(text: String) = runOnUiThread { status.text = "$text\n\n(long-press to enter the PC address manually)"; status.visibility = View.VISIBLE }
+    override fun onDestroy() { pen?.shutdown(); super.onDestroy() }
 
-    /** Broadcast on the LAN; the companion answers with its port. */
+    /** Sends an event to the page: window 'paddeck-native' CustomEvent. */
+    fun emit(obj: JSONObject) {
+        val js = "window.dispatchEvent(new CustomEvent('paddeck-native',{detail:${obj}}))"
+        runOnUiThread { web.evaluateJavascript(js, null) }
+    }
+
+    /** UDP broadcast "PADDECK_DISCOVER" on port 47801; every PadDeck Desktop on the LAN answers. */
     private fun discover() {
-        showStatus("Looking for PadDeck on your PC…")
         thread(isDaemon = true) {
             val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             val lock = wifi.createMulticastLock("paddeck").apply { setReferenceCounted(false); acquire() }
+            val found = LinkedHashMap<String, JSONObject>()
             try {
                 DatagramSocket().use { sock ->
                     sock.broadcast = true
-                    sock.soTimeout = 1500
+                    sock.soTimeout = 500
                     val msg = "PADDECK_DISCOVER".toByteArray()
-                    repeat(20) {
+                    repeat(6) {
                         sock.send(DatagramPacket(msg, msg.size, InetAddress.getByName("255.255.255.255"), 47801))
-                        try {
-                            val buf = ByteArray(1024)
-                            val pkt = DatagramPacket(buf, buf.size)
-                            sock.receive(pkt)
-                            val json = JSONObject(String(pkt.data, 0, pkt.length))
-                            if (json.optString("app") == "PadDeck") {
-                                val url = "http://${pkt.address.hostAddress}:${json.optInt("port", 47800)}/"
-                                prefs.edit().putString("url", url).apply()
-                                runOnUiThread { load(url) }
-                                return@thread
-                            }
-                        } catch (_: SocketTimeoutException) { }
+                        val until = System.currentTimeMillis() + 500
+                        while (System.currentTimeMillis() < until) {
+                            try {
+                                val buf = ByteArray(1024); val pkt = DatagramPacket(buf, buf.size)
+                                sock.receive(pkt)
+                                val j = JSONObject(String(pkt.data, 0, pkt.length))
+                                if (j.optString("app") == "PadDeck") {
+                                    val host = pkt.address.hostAddress ?: continue
+                                    found[host] = JSONObject().put("host", host).put("port", j.optInt("port", 47800)).put("name", j.optString("host", host))
+                                    emit(JSONObject().put("type", "discovered").put("pcs", JSONArray(found.values.toList())))
+                                }
+                            } catch (_: SocketTimeoutException) { break }
+                        }
                     }
                 }
-                showStatus("No PC found. Is the PadDeck companion running and on the same Wi-Fi?")
-            } catch (e: Exception) {
-                showStatus("Discovery failed: ${e.message}")
-            } finally { lock.release() }
+            } catch (_: Exception) { } finally { lock.release() }
+            emit(JSONObject().put("type", "discovered").put("pcs", JSONArray(found.values.toList())).put("done", true))
         }
     }
 
-    private fun askForAddress() {
-        val input = EditText(this).apply { hint = "192.168.0.123:47800"; setText(prefs.getString("url", "")?.removePrefix("http://")?.trimEnd('/')) }
-        AlertDialog.Builder(this).setTitle("PC address").setView(input)
-            .setPositiveButton("Connect") { _, _ ->
-                val v = input.text.toString().trim().removePrefix("http://").trimEnd('/')
-                val url = "http://" + (if (v.contains(":")) v else "$v:47800") + "/"
-                prefs.edit().putString("url", url).apply(); load(url)
-            }
-            .setNeutralButton("Search again") { _, _ -> prefs.edit().remove("url").apply(); discover() }
-            .show()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() { if (web.canGoBack()) web.goBack() }
-
     inner class Bridge {
-        @JavascriptInterface fun changePc() = runOnUiThread { askForAddress() }
-        @JavascriptInterface fun version(): String = "1.0.0"
+        @JavascriptInterface fun version(): String = "2.0.0"
+        @JavascriptInterface fun scanQr() = runOnUiThread {
+            scanLauncher.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan the QR code shown in PadDeck Desktop").setBeepEnabled(false).setOrientationLocked(false))
+        }
+        @JavascriptInterface fun discover() = this@MainActivity.discover()
+        @JavascriptInterface fun changePc() = emit(JSONObject().put("type", "changePc"))
+        @JavascriptInterface fun startPen(json: String) = runOnUiThread {
+            val cfg = JSONObject(json)
+            val p = pen ?: PenOverlay(this@MainActivity).also { pen = it; root.addView(it) }
+            p.configure(cfg)
+        }
+        @JavascriptInterface fun updatePenArea(json: String) = startPen(json)
+        @JavascriptInterface fun stopPen() = runOnUiThread { pen?.let { it.shutdown(); root.removeView(it) }; pen = null }
+        @JavascriptInterface fun vibrate(ms: Int) {
+            val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(ms.toLong(), VibrationEffect.DEFAULT_AMPLITUDE))
+        }
     }
 }

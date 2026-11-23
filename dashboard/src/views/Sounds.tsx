@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { activeProfile, run, send, toast, updateConfig, upload, useStore } from '../lib/store'
+import { useLayout } from '../lib/store'
 import type { Sound, SoundPage } from '../lib/types'
 import { Btn, ColorPick, Confirm, Empty, Field, Icon, IconPicker, Modal, Slider, cx, uid } from '../components/ui'
 
@@ -15,6 +16,7 @@ export function Sounds() {
   const [renaming, setRenaming] = useState<SoundPage | null>(null)
   const [drop, setDrop] = useState(false)
   const timers = useRef<Record<string, number>>({})
+  const phone = useLayout() === 'phone'
   const mut = (fn: (sb: typeof prof.soundboard) => void) => updateConfig((c) => fn(activeProfile(c)!.soundboard))
 
   const addFiles = async (files: FileList | File[]) => {
@@ -37,8 +39,8 @@ export function Sounds() {
     <div className={cx('h-full flex flex-col gap-3 rounded-[var(--radius)] transition', drop && 'ring-2 ring-accent bg-accent/5')}
       onDragOver={(e) => { e.preventDefault(); setDrop(true) }} onDragLeave={() => setDrop(false)}
       onDrop={(e) => { e.preventDefault(); setDrop(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files) }}>
-      <div className="flex items-center gap-2">
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-1">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-[200px]">
           {sb.pages.map((p) => (
             <button key={p.id} onClick={() => (p.id === page?.id ? setRenaming(p) : setPageId(p.id))} className={cx('tap h-11 px-4 rounded-2xl text-[14px] font-medium shrink-0 inline-flex items-center gap-2', p.id === page?.id ? 'bg-surface-2 shadow-[inset_0_0_0_1.5px_var(--accent)]' : 'text-ink-2')}>
               <Icon name="AudioLines" size={16} />{p.name}<span className="text-ink-3 text-[12px]">{p.sounds.length}</span>
@@ -46,7 +48,8 @@ export function Sounds() {
           ))}
           <button onClick={() => { const p = { id: uid('sp'), name: `Page ${sb.pages.length + 1}`, sounds: [] }; mut((x) => { x.pages.push(p) }); setPageId(p.id) }} className="tap h-11 px-3 rounded-2xl text-ink-2 inline-flex items-center gap-1.5 shrink-0"><Icon name="Plus" size={16} />Page</button>
         </div>
-        <div className="glass rounded-2xl h-12 flex items-center gap-2 pl-3 pr-2 w-[260px]">
+        <OutputPicker />
+        <div className="glass rounded-2xl h-12 flex items-center gap-2 pl-3 pr-2 w-[230px]">
           <Icon name="Volume2" size={17} className="text-ink-2" />
           <Slider value={sb.masterVolume} onChange={(v, final) => { send({ type: 'sound.master', volume: v }); if (final) mut((x) => { x.masterVolume = v }) }} className="!h-8" />
           <span className="text-[12px] tabular-nums w-9 text-right">{sb.masterVolume}%</span>
@@ -66,7 +69,7 @@ export function Sounds() {
         {sounds.length === 0 ? (
           <Empty icon="AudioLines" title="No sounds here yet" text="Upload MP3, WAV or OGG files (or drag & drop them here). Sounds play through your PC's current audio output." />
         ) : (
-          <div className="grid gap-[var(--gap)]" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+          <div className="grid gap-[var(--gap)]" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${phone ? 100 : 150}px, 1fr))` }}>
             {sounds.map((s) => {
               const isPlaying = !!playing[s.id]
               return (
@@ -78,7 +81,7 @@ export function Sounds() {
                   className={cx('deck-btn tap aspect-[5/4] p-3 flex flex-col items-center justify-center gap-2 text-white', isPlaying && 'ring-4 ring-white/50')}
                   style={{ background: `linear-gradient(160deg, color-mix(in oklab, ${s.color} 100%, white 10%), ${s.color})`, boxShadow: `0 12px 30px -14px ${s.color}` }}>
                   <span className="shine" />
-                  <Icon name={s.icon} size={30} className={isPlaying ? 'animate-pulse' : ''} />
+                  {s.emoji ? <span className={cx('leading-none', isPlaying && 'animate-pulse')} style={{ fontSize: phone ? 28 : 34 }}>{s.emoji}</span> : <Icon name={s.icon} size={phone ? 24 : 30} className={isPlaying ? 'animate-pulse' : ''} />}
                   <span className="text-[13.5px] font-semibold text-center leading-tight line-clamp-2">{s.name}</span>
                   {isPlaying && (
                     <span onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => { e.stopPropagation(); run({ type: 'stopSounds', soundId: s.id }, { quiet: true }) }}
@@ -140,7 +143,8 @@ function SoundEditor({ sound, pageId, onClose }: { sound: Sound; pageId: string;
           </div>
           <Field label="Colour"><ColorPick value={s.color} onChange={(color) => set({ color })} /></Field>
         </div>
-        <Field label="Icon"><IconPicker value={s.icon} onChange={(icon) => set({ icon })} /></Field>
+        <div><Field label="Emoji (optional, replaces the icon)"><input className="field !w-28 text-center text-[22px] !py-1" value={s.emoji || ''} maxLength={8} onChange={(e) => set({ emoji: e.target.value || undefined })} placeholder="😂" /></Field>
+        <Field label="Icon"><IconPicker value={s.icon} onChange={(icon) => set({ icon, emoji: undefined })} /></Field></div>
       </div>
       <Confirm open={askDel} danger title={`Delete “${s.name}”?`} onNo={() => setAskDel(false)} onYes={() => { mut((sb) => { for (const p of sb.pages) p.sounds = p.sounds.filter((x) => x.id !== s.id) }); onClose() }} />
     </Modal>
@@ -156,5 +160,29 @@ function PageRename({ page, onClose, onDelete }: { page: SoundPage; onClose: () 
       <Btn variant="accent" onClick={() => { updateConfig((c) => { activeProfile(c)!.soundboard.pages.find((p) => p.id === page.id)!.name = name }); onClose() }}>Save</Btn></>}>
       <Field label="Page name"><input className="field" value={name} onChange={(e) => setName(e.target.value)} /></Field>
     </Modal>
+  )
+}
+
+// Soundboard audio always plays on the PC's current Windows output: switch it right here.
+function OutputPicker() {
+  const outs = useStore((st) => st.pc?.audio.outputs || [])
+  const [open, setOpen] = useState(false)
+  const cur = outs.find((d) => d.isDefault)
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)} className="tap glass h-12 px-3 rounded-2xl flex items-center gap-2 max-w-[230px] text-[13px]">
+        <Icon name="Speaker" size={16} className="text-ink-2 shrink-0" /><span className="truncate">{cur?.name || 'No output'}</span><Icon name="ChevronDown" size={14} className="text-ink-3 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-30 top-14 right-0 w-72 glass rounded-2xl p-1.5 pop-in bg-[var(--bg)]/90" onPointerLeave={() => setOpen(false)}>
+          <div className="text-[11px] text-ink-3 px-3 py-1">Sounds play on the PC through:</div>
+          {outs.map((d) => (
+            <button key={d.id} onClick={() => { run({ type: 'output', deviceId: d.id, deviceName: d.name }); setOpen(false) }} className={cx('tap w-full flex items-center gap-2.5 px-3 h-11 rounded-xl text-[13.5px] text-left', d.isDefault && 'bg-surface-2')}>
+              <Icon name="Speaker" size={15} /><span className="flex-1 truncate">{d.name}</span>{d.isDefault && <Icon name="Check" size={15} className="text-accent" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

@@ -33,7 +33,7 @@ export class Actions {
     const h = this.helper;
     switch (action.type) {
       case 'app': {
-        const app = await this.apps.launch({ appId: action.appId, name: action.name }, action.args);
+        const app = await this.apps.launch({ appId: action.appId, name: action.name, path: action.path, id: action.id }, action.args);
         return { message: `Launched ${app.name}` };
       }
       case 'url': {
@@ -138,6 +138,13 @@ export class Actions {
       case 'focus': return this.toggleFocus(action.value);
       case 'discord': return this.discord(action.op);
       case 'scroll': await h.call('mouse.scroll', { dy: Number(action.dy) || 0, dx: Number(action.dx) || 0 }); return {};
+      case 'profile': {
+        const prof = this.cfg.profiles.find((p) => p.id === action.profileId);
+        if (!prof) throw new Error('Profile not found');
+        this.cfg.activeProfileId = prof.id;
+        this.store.saveConfigSoon();
+        return { message: `Profile: ${prof.name}`, configChanged: true };
+      }
       case 'page': case 'mode': case 'none': return {}; // handled on the tablet
       default: throw new Error(`Unknown action type: ${action.type}`);
     }

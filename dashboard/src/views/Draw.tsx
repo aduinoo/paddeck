@@ -3,7 +3,7 @@
 // to the companion, which injects a real Windows pen (InjectSyntheticPointerInput) - so
 // Windows Ink apps receive pressure-sensitive pen input, not mouse clicks.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { run, send, updateConfig, useStore } from '../lib/store'
+import { android, getState, run, send, token, updateConfig, useStore } from '../lib/store'
 import type { PenSettings, Screen } from '../lib/types'
 import { Btn, Field, Icon, Modal, Segmented, Slider, Toggle, cx } from '../components/ui'
 import { KeysInput, fmtKeys } from './ActionEditor'
@@ -67,7 +67,32 @@ export function Draw({ immersive, setImmersive }: { immersive: boolean; setImmer
   }, [pen.minPressure, pen.maxPressure, pen.gamma])
 
   // Rate counter
-  useEffect(() => { const t = setInterval(() => { setCaps((c) => ({ ...c, rate: st.current.count })); st.current.count = 0 }, 1000); return () => clearInterval(t) }, [])
+  useEffect(() => { const t = setInterval(() => { if (!nativePen) setCaps((c) => ({ ...c, rate: st.current.count })); st.current.count = 0 }, 1000); return () => clearInterval(t) }, [])
+
+  // Android app: capture the Smart Pen natively (MotionEvent: full-precision pressure, tilt,
+  // orientation, hover, buttons, eraser, batched historical samples) and stream it to the PC
+  // directly from Kotlin. Fingers still reach this page for gestures.
+  const nativePen = !!android
+  const penCfg = JSON.stringify({ gamma: pen.gamma ?? 1, min: pen.minPressure ?? 0, max: pen.maxPressure ?? 1, smoothing: pen.smoothing || 0, hover: pen.hover, barrel: pen.barrelAction, palm: pen.palmRejection, offset: (pen as any).offset || null })
+  useEffect(() => {
+    if (!android || !surfRef.current || !area.w) return
+    const r = surfRef.current.getBoundingClientRect()
+    const payload = JSON.stringify({ server: getState().server, token: token(), dpr: devicePixelRatio, x: r.left + area.x, y: r.top + area.y, w: area.w, h: area.h, cfg: JSON.parse(penCfg) })
+    android.startPen(payload)
+  }, [area, penCfg])
+  useEffect(() => () => { android?.stopPen() }, [])
+  useEffect(() => {
+    if (!android) return
+    const h = (e: Event) => {
+      const d = (e as CustomEvent).detail || {}
+      if (d.type !== 'penStatus') return
+      setCaps((c) => ({ ...c, pen: c.pen || d.seen, pressure: c.pressure || d.pressure, tilt: c.tilt || d.tilt, hover: c.hover || d.hover, barrel: c.barrel || d.barrel, eraser: c.eraser || d.eraser, maxPressureSeen: Math.max(c.maxPressureSeen, d.maxP || 0), rate: d.rate ?? c.rate }))
+      setLive((l) => ({ ...l, p: d.p ?? 0, contact: !!d.contact, inRange: !!d.inRange, x: (d.x ?? 0) - (surfRef.current?.getBoundingClientRect().left || 0), y: (d.y ?? 0) - (surfRef.current?.getBoundingClientRect().top || 0), eraser: !!d.isEraser }))
+      if (d.x !== undefined && d.contact) trail.current.push({ x: d.x - (surfRef.current?.getBoundingClientRect().left || 0), y: d.y - (surfRef.current?.getBoundingClientRect().top || 0), p: d.p || 0, t: performance.now() })
+    }
+    window.addEventListener('paddeck-native', h)
+    return () => window.removeEventListener('paddeck-native', h)
+  }, [])
 
   // Fading local trail for visual feedback
   useEffect(() => {
@@ -138,10 +163,11 @@ export function Draw({ immersive, setImmersive }: { immersive: boolean; setImmer
     const isPalm = (e: PointerEvent) => pen.palmRejection && (s.inRange || s.contact || performance.now() - s.lastPen < 600 || e.width > 45)
 
     const onDown = (e: PointerEvent) => {
+      if (nativePen && e.pointerType === 'pen') return
       e.preventDefault()
       const rect = el.getBoundingClientRect()
       if (e.pointerType === 'pen') {
-        el.setPointerCapture(e.pointerId)
+        try { el.setPointerCapture(e.pointerId) } catch { /* ignore */ }
         s.contact = true; s.inRange = true; s.lastPen = performance.now()
         if (calibrating) return
         emit('down', e, rect)
@@ -152,10 +178,11 @@ export function Draw({ immersive, setImmersive }: { immersive: boolean; setImmer
         if (pen.fingerGestures) startGesture()
       } else if (e.pointerType === 'mouse') {
         // Desktop testing: treat mouse as a pen without pressure data.
-        el.setPointerCapture(e.pointerId); s.contact = true; emit('down', e, rect)
+        try { el.setPointerCapture(e.pointerId) } catch { /* ignore */ } s.contact = true; emit('down', e, rect)
       }
     }
     const onMove = (e: PointerEvent) => {
+      if (nativePen && e.pointerType === 'pen') return
       const rect = el.getBoundingClientRect()
       if (e.pointerType === 'pen' || (e.pointerType === 'mouse' && s.contact)) {
         s.lastPen = performance.now()
@@ -181,6 +208,7 @@ export function Draw({ immersive, setImmersive }: { immersive: boolean; setImmer
       }
     }
     const onUp = (e: PointerEvent) => {
+      if (nativePen && e.pointerType === 'pen') return
       const rect = el.getBoundingClientRect()
       if (e.pointerType === 'pen' || e.pointerType === 'mouse') {
         if (calibrating && e.pointerType === 'pen') { finishCalibration(e, rect); s.contact = false; return }
@@ -192,6 +220,7 @@ export function Draw({ immersive, setImmersive }: { immersive: boolean; setImmer
       }
     }
     const onLeave = (e: PointerEvent) => {
+      if (nativePen) return
       if (e.pointerType !== 'pen') return
       const rect = el.getBoundingClientRect()
       if (s.contact) emit('up', e, rect)
@@ -314,7 +343,7 @@ export function Draw({ immersive, setImmersive }: { immersive: boolean; setImmer
             <Cap ok={caps.pressure} label="Pressure" />
             <Cap ok={caps.tilt} label="Tilt" />
             <Cap ok={caps.hover} label="Hover" />
-            <span className="text-ink-3 tabular-nums">{caps.rate} ev/s · {latency ?? '–'} ms</span>
+            <span className="text-ink-3 tabular-nums">{nativePen ? 'native · ' : ''}{caps.rate} ev/s · {latency ?? '–'} ms</span>
             <div className="w-16 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full bg-accent" style={{ width: `${live.p * 100}%` }} /></div>
             {live.eraser && <span className="text-warn font-semibold">Eraser</span>}
           </div>

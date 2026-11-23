@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { activeProfile, mediaUrl, requestIcon, run, toast, updateConfig, upload, useStore } from '../lib/store'
+import { activeProfile, mediaUrl, requestIcon, run, switchProfile, toast, updateConfig, upload, useLayout, useStore } from '../lib/store'
+import { buttonBackground } from '../lib/theme'
 import type { DeckButton, DeckPage, PcState } from '../lib/types'
 import { Btn, ColorPick, Confirm, Field, Icon, IconBtn, IconPicker, Modal, Segmented, Slider, Toggle, cx, uid } from '../components/ui'
 import { ActionEditor, ACTION_TYPES } from './ActionEditor'
@@ -77,6 +78,7 @@ function Grid({ page, edit }: { page: DeckPage; edit: boolean }) {
     const a = b.action
     if (a.type === 'page') { window.dispatchEvent(new CustomEvent('paddeck:page', { detail: a.pageId })); return }
     if (a.type === 'mode') { window.dispatchEvent(new CustomEvent('paddeck:mode', { detail: a.mode })); return }
+    if (a.type === 'profile') { if (a.profileId) switchProfile(a.profileId); return }
     if (b.confirm && !confirmed) { setConfirmBtn(b); return }
     if (b.toggle && !b.bind) setLocal((l) => ({ ...l, [b.id]: !l[b.id] }))
     const r = await run(a, { confirmed: confirmed || !!b.confirm, quiet: a.type === 'keys' || a.type === 'media' || a.type === 'volume' })
@@ -107,8 +109,31 @@ function Grid({ page, edit }: { page: DeckPage; edit: boolean }) {
     setEditing(nb)
   }
 
-  const cells = []
+  const cells: { x: number; y: number }[] = []
   if (edit) for (let y = 0; y < page.rows; y++) for (let x = 0; x < page.cols; x++) if (!occupied.has(`${x},${y}`)) cells.push({ x, y })
+  const phone = useLayout() === 'phone'
+  const portraitCols = Math.min(page.cols, typeof window !== 'undefined' && window.innerWidth < 420 ? 3 : 4)
+
+  if (phone) {
+    // Phones: same buttons, reflowed into a compact scrolling grid (reading order).
+    const ordered = [...page.buttons].sort((a, b) => a.y - b.y || a.x - b.x)
+    return (
+      <>
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+          <div className="grid pb-2" style={{ gridTemplateColumns: `repeat(${portraitCols}, minmax(0,1fr))`, gap: 'calc(var(--gap) * 0.7)' }}>
+            {ordered.map((b) => (
+              <div key={b.id} className="aspect-square flex">
+                <ButtonView b={{ ...b, x: 0, y: 0, w: 1, h: 1 }} edit={false} active={boundState(b, pc, focus, local)} dragging={null} compact
+                  onTrigger={() => (edit ? setEditing(b) : trigger(b))} onEdit={() => setEditing(b)} onMenu={(x, y) => setMenu({ b, x, y })} onDrag={() => {}} />
+              </div>
+            ))}
+            {edit && cells[0] && <button onClick={() => addAt(cells[0].x, cells[0].y)} className="tap aspect-square rounded-[var(--radius)] border-2 border-dashed border-line flex items-center justify-center text-ink-3"><Icon name="Plus" size={24} /></button>}
+          </div>
+        </div>
+        {renderOverlays()}
+      </>
+    )
+  }
 
   return (
     <>
@@ -132,6 +157,13 @@ function Grid({ page, edit }: { page: DeckPage; edit: boolean }) {
           />
         ))}
       </div>
+      {renderOverlays()}
+    </>
+  )
+
+  function renderOverlays() {
+    return (
+      <>
       {menu && (
         <div className="fixed inset-0 z-40" onPointerDown={() => setMenu(null)}>
           <div className="absolute glass rounded-2xl p-1.5 w-52 pop-in bg-[var(--bg)]/85" style={{ left: Math.min(menu.x, innerWidth - 220), top: Math.min(menu.y, innerHeight - 200) }} onPointerDown={(e) => e.stopPropagation()}>
@@ -152,8 +184,9 @@ function Grid({ page, edit }: { page: DeckPage; edit: boolean }) {
       }} onDelete={() => { mutatePage((p) => { p.buttons = p.buttons.filter((x) => x.id !== editing.id) }); setEditing(null) }} />}
       <Confirm open={!!confirmBtn} danger title={`${confirmBtn?.label}?`} text={`This will run “${confirmBtn?.label}” on your PC.`}
         onNo={() => setConfirmBtn(null)} onYes={() => { const b = confirmBtn!; setConfirmBtn(null); trigger(b, true) }} />
-    </>
-  )
+      </>
+    )
+  }
 
   function duplicate(b: DeckButton) {
     let spot: { x: number; y: number } | null = null
@@ -163,8 +196,8 @@ function Grid({ page, edit }: { page: DeckPage; edit: boolean }) {
   }
 }
 
-function ButtonView({ b, edit, active, dragging, onTrigger, onEdit, onMenu, onDrag }: {
-  b: DeckButton; edit: boolean; active: boolean; dragging: { x: number; y: number } | null
+function ButtonView({ b, edit, active, dragging, onTrigger, onEdit, onMenu, onDrag, compact }: {
+  b: DeckButton; edit: boolean; active: boolean; dragging: { x: number; y: number } | null; compact?: boolean
   onTrigger: () => void; onEdit: () => void; onMenu: (x: number, y: number) => void; onDrag: (x: number, y: number, end: boolean) => void
 }) {
   const theme = useStore((s) => activeProfile(s.config)?.theme)
@@ -174,8 +207,9 @@ function ButtonView({ b, edit, active, dragging, onTrigger, onEdit, onMenu, onDr
   const st = useRef<{ x: number; y: number; t: number; timer?: number; long?: boolean; moved?: boolean; id?: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
-  const iconKey = b.appIcon && b.action.type === 'app' ? `app:${b.action.appId || b.action.name}` : null
-  useEffect(() => { if (iconKey) requestIcon(iconKey, { appId: b.action.appId, name: b.action.name }) }, [iconKey, b.action.appId, b.action.name])
+  const iconKey = b.appIcon && b.action.type === 'app' ? `app:${b.action.appId || b.action.path || b.action.name}`
+    : b.fileIcon && b.action.type === 'open' && b.action.path ? `file:${b.action.path}` : null
+  useEffect(() => { if (iconKey) requestIcon(iconKey, { appId: b.action.appId, name: b.action.name, path: b.action.path }) }, [iconKey, b.action.appId, b.action.name, b.action.path])
   const appImg = iconKey ? icons[iconKey] : null
 
   const bg = (active && b.activeBg) || b.bg
@@ -219,13 +253,14 @@ function ButtonView({ b, edit, active, dragging, onTrigger, onEdit, onMenu, onDr
   return (
     <div ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onContextMenu={(e) => e.preventDefault()}
       className={cx('deck-btn flex flex-col items-center justify-center gap-2 p-3 cursor-pointer', !bg && base, pressed && 'pressed', edit && !dragging && 'wiggle', dragging && 'z-30 shadow-2xl opacity-90')}
-      style={{ gridColumn: `${b.x + 1} / span ${b.w}`, gridRow: `${b.y + 1} / span ${b.h}`, background: bg ? `linear-gradient(160deg, color-mix(in oklab, ${bg} 100%, white 8%), ${bg})` : undefined, color: fg, transform, boxShadow: bg ? `0 12px 30px -14px ${bg}` : undefined }}>
+      style={{ gridColumn: compact ? undefined : `${b.x + 1} / span ${b.w}`, gridRow: compact ? undefined : `${b.y + 1} / span ${b.h}`, flex: compact ? 1 : undefined, background: buttonBackground(bg, active && b.activeBg ? undefined : b.bg2), color: fg, transform, boxShadow: bg ? `0 12px 30px -14px ${bg}` : undefined }}>
       <span className="shine" />
       {ripples.map((r) => <span key={r.id} className="ripple" style={{ left: r.x - 40, top: r.y - 40, width: 80, height: 80 }} />)}
       {b.image ? <img src={mediaUrl(b.image)} alt="" className="max-w-[60%] max-h-[55%] object-contain rounded-xl pointer-events-none" draggable={false} />
+        : b.emoji ? <span className="pointer-events-none leading-none" style={{ fontSize: compact ? 30 : b.w > 1 || b.h > 1 ? 52 : 38 }}>{b.emoji}</span>
         : appImg ? <img src={mediaUrl(appImg)} alt="" className="w-[42%] max-w-16 aspect-square object-contain pointer-events-none drop-shadow" draggable={false} />
         : <Icon name={icon} className="pointer-events-none" size={b.w > 1 || b.h > 1 ? 40 : 30} />}
-      {showLabel && <span className="text-[13px] font-medium leading-tight text-center line-clamp-2 pointer-events-none px-1">{label}</span>}
+      {showLabel && <span className={cx(compact ? 'text-[11.5px]' : 'text-[13px]', 'font-medium leading-tight text-center line-clamp-2 pointer-events-none px-1')}>{label}</span>}
       {active && !b.activeBg && <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-accent shadow-[0_0_10px_var(--accent)]" />}
       {b.confirm && <Icon name="ShieldAlert" size={13} className="absolute top-2.5 left-2.5 opacity-60" />}
     </div>
@@ -248,9 +283,9 @@ function ButtonEditor({ page, button, onClose, onSave, onDelete }: { page: DeckP
       </>}>
       <div className="grid grid-cols-[180px_1fr] gap-6">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-40 h-40 deck-btn glass flex flex-col items-center justify-center gap-2" style={{ background: b.bg || undefined, color: b.fg || (b.bg ? '#fff' : undefined) }}>
+          <div className="w-40 h-40 deck-btn glass flex flex-col items-center justify-center gap-2" style={{ background: buttonBackground(b.bg, b.bg2), color: b.fg || (b.bg ? '#fff' : undefined) }}>
             <span className="shine" />
-            {b.image ? <img src={mediaUrl(b.image)} className="max-w-[60%] max-h-[55%] object-contain rounded-xl" alt="" /> : <Icon name={b.icon} size={36} />}
+            {b.image ? <img src={mediaUrl(b.image)} className="max-w-[60%] max-h-[55%] object-contain rounded-xl" alt="" /> : b.emoji ? <span className="text-[40px] leading-none">{b.emoji}</span> : <Icon name={b.icon} size={36} />}
             <span className="text-[13px] font-medium text-center px-2">{b.label}</span>
           </div>
           <Segmented value={tab} onChange={setTab} options={[{ value: 'action', label: 'Action', icon: 'Zap' }, { value: 'look', label: 'Look', icon: 'Palette' }]} />
@@ -260,7 +295,11 @@ function ButtonEditor({ page, button, onClose, onSave, onDelete }: { page: DeckP
           <Field label="Label"><input className="field" value={b.label} onChange={(e) => set({ label: e.target.value })} /></Field>
           {tab === 'action' ? (
             <>
-              <ActionEditor action={b.action} onChange={(action) => set({ action, ...(action.type === 'app' && action.name && (b.label === 'New button' || !b.label) ? { label: action.name, appIcon: true } : {}) })} />
+              <ActionEditor action={b.action} onChange={(action) => {
+                const auto = b.label === 'New button' || !b.label || b.label === b.action.name
+                set({ action, ...(action.type === 'app' && action.name && auto ? { label: action.name, appIcon: true, emoji: undefined, image: undefined } : {}),
+                  ...(action.type === 'open' && action.name && auto ? { label: action.name, fileIcon: true } : {}) })
+              }} />
               <div className="grid grid-cols-2 gap-x-6">
                 <Toggle on={!!b.confirm} onChange={(v) => set({ confirm: v })} label="Ask before running" />
                 <Toggle on={!!b.toggle} onChange={(v) => set({ toggle: v })} label="Toggle button" hint="Shows an on/off state" />
@@ -276,14 +315,22 @@ function ButtonEditor({ page, button, onClose, onSave, onDelete }: { page: DeckP
             </>
           ) : (
             <>
-              <Field label="Icon"><IconPicker value={b.icon} onChange={(icon) => set({ icon, image: undefined, appIcon: false })} /></Field>
+              <Field label="Icon"><IconPicker value={b.icon} onChange={(icon) => set({ icon, image: undefined, appIcon: false, fileIcon: false, emoji: undefined })} /></Field>
+              <Field label="Or an emoji" hint="Type or paste any emoji">
+                <div className="flex gap-2 flex-wrap items-center">
+                  <input className="field !w-24 text-center text-[22px] !py-1" value={b.emoji || ''} maxLength={8} onChange={(e) => set({ emoji: e.target.value || undefined, image: undefined, appIcon: false, fileIcon: false })} placeholder="😀" />
+                  {['🎮', '🎧', '🎨', '💻', '📁', '🎵', '🔥', '⭐', '🚀', '📸', '🎬', '☕'].map((em) => <button key={em} className="tap w-10 h-10 rounded-xl bg-surface-2 text-[20px]" onClick={() => set({ emoji: em, image: undefined, appIcon: false, fileIcon: false })}>{em}</button>)}
+                </div>
+              </Field>
               <div className="flex gap-2 mb-3">
                 <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { set({ image: await upload(f, 'image'), appIcon: false }) } catch (er: any) { toast(er.message, 'error') } }} />
                 <Btn size="sm" icon="ImageUp" onClick={() => fileRef.current?.click()}>Upload image</Btn>
                 {b.image && <Btn size="sm" icon="X" onClick={() => set({ image: undefined })}>Remove image</Btn>}
-                {b.action.type === 'app' && <Btn size="sm" icon="AppWindow" variant={b.appIcon ? 'accent' : 'soft'} onClick={() => set({ appIcon: !b.appIcon, image: undefined })}>Use app icon</Btn>}
+                {b.action.type === 'app' && <Btn size="sm" icon="AppWindow" variant={b.appIcon ? 'accent' : 'soft'} onClick={() => set({ appIcon: !b.appIcon, image: undefined, emoji: undefined })}>Use app icon</Btn>}
+                {b.action.type === 'open' && <Btn size="sm" icon="File" variant={b.fileIcon ? 'accent' : 'soft'} onClick={() => set({ fileIcon: !b.fileIcon, image: undefined, emoji: undefined })}>Use file icon</Btn>}
               </div>
               <Field label="Background"><ColorPick allowNone value={b.bg || ''} onChange={(bg) => set({ bg: bg || undefined })} /></Field>
+              {b.bg && <Field label="Gradient to (optional)"><ColorPick allowNone value={b.bg2 || ''} onChange={(bg2) => set({ bg2: bg2 || undefined })} /></Field>}
               <Field label="Text colour"><ColorPick allowNone value={b.fg || ''} onChange={(fg) => set({ fg: fg || undefined })} /></Field>
               {b.toggle && <Field label="Background when on"><ColorPick allowNone value={b.activeBg || ''} onChange={(v) => set({ activeBg: v || undefined })} /></Field>}
               <div className="grid grid-cols-2 gap-3">
@@ -330,10 +377,18 @@ function PageEditor({ page, onClose, onDeleted }: { page: DeckPage; onClose: () 
 }
 
 function QuickBar() {
+  const phone = useLayout() === 'phone'
   const pc = useStore((s) => s.pc)
   const out = pc?.audio.outputs.find((d) => d.isDefault)
   const mic = pc?.audio.inputs.find((d) => d.isDefault)
   const [pick, setPick] = useState(false)
+  if (phone) return (
+    <div className="glass panel h-[60px] shrink-0 flex items-center gap-3 px-3">
+      <IconBtn icon={out?.muted ? 'VolumeX' : 'Volume2'} size={40} active={!!out?.muted} onClick={() => run({ type: 'volume', mode: 'mute' }, { quiet: true })} label="Mute" />
+      <Slider value={out?.volume ?? 0} onChange={(v) => run({ type: 'volume', mode: 'set', value: v }, { quiet: true })} />
+      <span className="w-10 text-right tabular-nums text-[13px] font-medium">{out?.volume ?? '–'}%</span>
+    </div>
+  )
   return (
     <div className="glass panel h-[72px] shrink-0 flex items-center gap-4 px-4">
       <IconBtn icon={out?.muted ? 'VolumeX' : 'Volume2'} active={!!out?.muted} onClick={() => run({ type: 'volume', mode: 'mute' }, { quiet: true })} label="Mute" />

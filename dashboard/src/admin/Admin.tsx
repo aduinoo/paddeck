@@ -27,12 +27,13 @@ export function Admin() {
       <div className="app-bg" data-kind="aurora" />
       <header className="flex items-center gap-3 mb-6">
         <img src="/favicon.svg" className="w-11 h-11" alt="" />
-        <div className="flex-1"><h1 className="text-[24px] font-semibold tracking-tight">PadDeck Companion</h1><div className="text-[13px] text-ink-3">v{s.version} · {s.host} · port {s.port} · {s.helperRunning ? 'native helper running' : 'native helper NOT running'}</div></div>
+        <div className="flex-1"><h1 className="text-[24px] font-semibold tracking-tight">PadDeck Desktop</h1><div className="text-[13px] text-ink-3">v{s.version} · {s.host} · port {s.port} · {s.helperRunning ? 'native helper running' : 'native helper NOT running'}</div></div>
         {msg && <div className="glass rounded-full px-4 py-2 text-[13px] pop-in">{msg}</div>}
         <Btn icon="RotateCcw" onClick={() => act('restart', {}, 'Restarting…')}>Restart companion</Btn>
       </header>
       <div className="grid grid-cols-[380px_1fr] gap-5">
-        <Panel title="Pair a tablet" icon="QrCode">
+        <div className="flex flex-col gap-5">
+        <Panel title="Pair a phone or tablet" icon="QrCode">
           <div id="pair" className="bg-white rounded-2xl p-4 mx-auto w-full aspect-square" dangerouslySetInnerHTML={{ __html: s.qr }} />
           <div className="text-center mt-4">
             <div className="text-[12px] text-ink-3">or enter this code on the tablet</div>
@@ -47,7 +48,17 @@ export function Admin() {
             </select>
           )}
           <div className="flex gap-2 mt-3 justify-center"><Btn size="sm" icon="RefreshCw" onClick={() => act('rotate', {}, 'New code generated')}>New code</Btn></div>
+          <div className="text-[12px] text-ink-3 mt-3 text-center">In the PadDeck Android app tap <b>Scan QR code</b>. Pair as many phones and tablets as you like.</div>
         </Panel>
+        {s.apk && (
+          <Panel title="Get the Android app" icon="Smartphone">
+            <div className="flex gap-4 items-center">
+              <div className="bg-white rounded-xl p-2 w-32 h-32 shrink-0" dangerouslySetInnerHTML={{ __html: s.apk.qr }} />
+              <div className="text-[13px] text-ink-2">Scan with the phone or tablet camera to download <b>PadDeck.apk</b>, then open it to install (allow “Install unknown apps” when Android asks).<div className="text-[11px] text-ink-3 mt-2 break-all select-all">{s.apk.url}</div></div>
+            </div>
+          </Panel>
+        )}
+        </div>
         <div className="flex flex-col gap-5">
           <Panel title="Paired devices" icon="Tablet">
             {s.devices.length === 0 && <div className="text-[13px] text-ink-3">No tablets paired yet.</div>}

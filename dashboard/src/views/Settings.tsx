@@ -1,32 +1,33 @@
 import { useEffect, useState } from 'react'
-import { activeProfile, exportConfig, importConfig, mediaUrl, onBackups, send, toast, unpairLocal, updateConfig, upload, useStore } from '../lib/store'
-import type { Profile, Theme } from '../lib/types'
-import { Btn, ColorPick, Confirm, Field, Icon, IconPicker, Modal, Panel, Segmented, Slider, Toggle, cx, uid } from '../components/ui'
+import { activeProfile, exportConfig, importConfig, onBackups, send, toast, unpairLocal, updateConfig, useStore } from '../lib/store'
+import type { Profile } from '../lib/types'
+import { Btn, ColorPick, Confirm, Field, Icon, IconPicker, Modal, Panel, Slider, Toggle, cx, uid } from '../components/ui'
 import { KeysInput } from './ActionEditor'
+import { ThemeEditor, DeviceSettings } from './ThemeEditor'
 
 type Tab = 'profiles' | 'theme' | 'focus' | 'notify' | 'integrations' | 'backup' | 'about'
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'profiles', label: 'Profiles', icon: 'Users' }, { id: 'theme', label: 'Appearance', icon: 'Palette' }, { id: 'focus', label: 'Focus mode', icon: 'Target' },
-  { id: 'notify', label: 'Notifications', icon: 'Bell' }, { id: 'integrations', label: 'Integrations', icon: 'Plug' }, { id: 'backup', label: 'Backup', icon: 'Archive' }, { id: 'about', label: 'Device', icon: 'Tablet' },
+  { id: 'notify', label: 'Notifications', icon: 'Bell' }, { id: 'integrations', label: 'Integrations', icon: 'Plug' }, { id: 'backup', label: 'Backup', icon: 'Archive' }, { id: 'about', label: 'This device', icon: 'Smartphone' },
 ]
 
 export function Settings() {
   const [tab, setTab] = useState<Tab>('profiles')
   return (
-    <div className="h-full grid grid-cols-[220px_1fr] gap-[var(--gap)] min-h-0">
-      <div className="glass panel p-2 flex flex-col gap-1 h-fit">
+    <div className="h-full grid grid-cols-1 md:grid-cols-[220px_1fr] gap-[var(--gap)] min-h-0 overflow-y-auto md:overflow-visible">
+      <div className="glass panel p-2 flex md:flex-col gap-1 h-fit overflow-x-auto no-scrollbar">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={cx('tap h-12 px-3 rounded-2xl flex items-center gap-3 text-[14px] font-medium text-left', tab === t.id ? 'bg-accent text-white' : 'text-ink-2')}><Icon name={t.icon} size={18} />{t.label}</button>
+          <button key={t.id} onClick={() => setTab(t.id)} className={cx('tap h-12 px-3 rounded-2xl flex items-center gap-3 text-[14px] font-medium text-left shrink-0', tab === t.id ? 'bg-selected' : 'text-ink-2')}><Icon name={t.icon} size={18} />{t.label}</button>
         ))}
       </div>
       <div className="min-h-0 overflow-y-auto thin-scroll pr-1">
         {tab === 'profiles' && <Profiles />}
-        {tab === 'theme' && <ThemeSettings />}
+        {tab === 'theme' && <ThemeEditor />}
         {tab === 'focus' && <FocusSettings />}
         {tab === 'notify' && <NotifySettings />}
         {tab === 'integrations' && <Integrations />}
         {tab === 'backup' && <Backup />}
-        {tab === 'about' && <About />}
+        {tab === 'about' && <div className="space-y-[var(--gap)]"><DeviceSettings /><About /></div>}
       </div>
     </div>
   )
@@ -79,52 +80,6 @@ function ProfileFields({ id }: { id: string }) {
   )
 }
 
-const FONTS = ['Inter', 'system-ui', 'Segoe UI', 'Roboto', 'Georgia', 'ui-monospace']
-function ThemeSettings() {
-  const config = useStore((s) => s.config)!
-  const t = activeProfile(config)!.theme
-  const set = (p: Partial<Theme>) => updateConfig((c) => { Object.assign(activeProfile(c)!.theme, p) })
-  const [name, setName] = useState('')
-  return (
-    <div className="grid grid-cols-2 gap-[var(--gap)]">
-      <Panel title="Theme" icon="Palette">
-        <Field label="Mode"><Segmented value={t.mode} onChange={(v) => set({ mode: v })} options={[{ value: 'dark', label: 'Dark', icon: 'Moon' }, { value: 'light', label: 'Light', icon: 'Sun' }]} /></Field>
-        <Field label="Accent colour"><ColorPick value={t.accent} onChange={(v) => set({ accent: v || '#7c5cff' })} /></Field>
-        <Field label="Background">
-          <div className="flex flex-wrap gap-2 items-center">
-            <Segmented value={t.background.type === 'image' ? 'image' : t.background.value} onChange={(v) => v !== 'image' && set({ background: { type: v === 'solid' ? 'solid' : 'gradient', value: v } })}
-              options={[{ value: 'aurora', label: 'Aurora' }, { value: 'mesh', label: 'Grid' }, { value: 'solid', label: 'Plain' }, { value: 'image', label: 'Image' }]} />
-            <label className="tap h-9 px-3 rounded-xl bg-surface-2 inline-flex items-center gap-1.5 text-[13px] cursor-pointer"><Icon name="ImageUp" size={15} />Upload
-              <input type="file" hidden accept="image/*" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { try { set({ background: { type: 'image', value: await upload(f, 'image') } }) } catch (er: any) { toast(er.message, 'error') } } }} /></label>
-            {t.background.type === 'image' && <img src={mediaUrl(t.background.value)} className="h-9 rounded-lg" alt="" />}
-          </div>
-        </Field>
-        <Field label="Font"><select className="field" value={t.font} onChange={(e) => set({ font: e.target.value })}>{FONTS.map((f) => <option key={f}>{f}</option>)}</select></Field>
-      </Panel>
-      <Panel title="Buttons & layout" icon="LayoutGrid">
-        <Field label="Button style"><Segmented value={t.buttonStyle} onChange={(v) => set({ buttonStyle: v })} options={[{ value: 'glass', label: 'Glass' }, { value: 'solid', label: 'Solid' }, { value: 'outline', label: 'Outline' }]} /></Field>
-        <Field label={`Corner radius: ${t.radius}px`}><Slider value={t.radius} min={4} max={36} live={false} onChange={(v) => set({ radius: v })} /></Field>
-        <Field label={`Spacing: ${t.gap}px`}><Slider value={t.gap} min={4} max={28} live={false} onChange={(v) => set({ gap: v })} /></Field>
-        <Toggle on={t.showLabels} onChange={(v) => set({ showLabels: v })} label="Show button labels" />
-        <div className="text-[12px] text-ink-3 mt-2">Grid density (columns × rows) is set per page: Stream Deck → Edit → tap the page name.</div>
-      </Panel>
-      <Panel title="Saved themes" icon="Bookmark" className="col-span-2">
-        <div className="flex gap-2 mb-3"><input className="field" placeholder="Theme name" value={name} onChange={(e) => setName(e.target.value)} />
-          <Btn icon="Save" disabled={!name} onClick={() => { updateConfig((c) => { c.themes.push({ ...structuredClone(t), name }) }); setName(''); toast('Theme saved', 'success') }}>Save current</Btn></div>
-        <div className="flex flex-wrap gap-2">
-          {config.themes.map((th, i) => (
-            <div key={i} className="flex items-center gap-1 rounded-2xl bg-surface-2 pl-1 pr-1">
-              <button className="tap flex items-center gap-2 h-11 px-2 text-[13px]" onClick={() => set(structuredClone({ ...th, name: undefined }))}><span className="w-6 h-6 rounded-full" style={{ background: th.accent }} />{th.name} · {th.mode}</button>
-              <button className="tap p-2 text-ink-3" onClick={() => updateConfig((c) => { c.themes.splice(i, 1) })}><Icon name="X" size={14} /></button>
-            </div>
-          ))}
-          {config.themes.length === 0 && <span className="text-[13px] text-ink-3">No saved themes yet.</span>}
-        </div>
-      </Panel>
-    </div>
-  )
-}
-
 function FocusSettings() {
   const config = useStore((s) => s.config)!
   const apps = useStore((s) => s.apps)
@@ -148,7 +103,7 @@ function FocusSettings() {
           <Field label="Launch these apps">
             <div className="flex flex-wrap gap-1.5 mb-2">{f.launch.map((a) => <button key={a.appId} onClick={() => set({ launch: f.launch.filter((x) => x.appId !== a.appId) })} className="tap h-8 px-2.5 rounded-lg bg-accent text-white text-[12px] inline-flex items-center gap-1">{a.name}<Icon name="X" size={12} /></button>)}</div>
             <input className="field mb-2" placeholder="Search apps to add…" value={q} onChange={(e) => setQ(e.target.value)} />
-            {q && <div className="max-h-40 overflow-y-auto thin-scroll space-y-1">{apps.filter((a) => a.name.toLowerCase().includes(q.toLowerCase())).slice(0, 20).map((a) => <button key={a.appId} className="tap w-full text-left px-3 py-2 rounded-xl bg-surface-2 text-[13px]" onClick={() => { set({ launch: [...f.launch, { appId: a.appId, name: a.name }] }); setQ('') }}>{a.name}</button>)}</div>}
+            {q && <div className="max-h-40 overflow-y-auto thin-scroll space-y-1">{apps.filter((a) => a.name.toLowerCase().includes(q.toLowerCase())).slice(0, 20).map((a) => <button key={a.id} className="tap w-full text-left px-3 py-2 rounded-xl bg-surface-2 text-[13px]" onClick={() => { set({ launch: [...f.launch, { appId: a.appId || '', path: a.path, name: a.name } as any] }); setQ('') }}>{a.name}</button>)}</div>}
           </Field>
         </div>
       </div>

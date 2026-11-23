@@ -7,3 +7,7 @@ android/.gradle/
 android/local.properties
 PadDeck.vbs
 PadDeck.apk
+companion/dist/
+desktop/node_modules/
+desktop/release/
+android/app/src/main/assets/

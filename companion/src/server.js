@@ -14,24 +14,29 @@ import { Store, DATA_DIR, MEDIA_DIR, SCRIPTS_DIR, BACKUP_DIR } from './store.js'
 import { Auth } from './auth.js';
 import { Helper } from './helper.js';
 import { Monitor } from './monitor.js';
-import { Apps } from './apps.js';
+import { Apps, places, listDir } from './apps.js';
 import { Actions } from './actions.js';
 
-const VERSION = '1.0.0';
+const VERSION = '2.0.0';
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(here, '..', '..');
-const DIST = path.join(ROOT, 'dashboard', 'dist');
-const HELPER_EXE = path.join(ROOT, 'native', 'bin', 'PadDeckHelper.exe');
+const ROOT = process.env.PADDECK_ROOT || path.resolve(here, '..', '..');
+const DIST = process.env.PADDECK_DIST || path.join(ROOT, 'dashboard', 'dist');
+const HELPER_EXE = process.env.PADDECK_HELPER || path.join(ROOT, 'native', 'bin', 'PadDeckHelper.exe');
+// Set by the PadDeck Desktop (Electron) shell: { notify, pickPath, openSettings, restart, quit, setStatus }
+const host = globalThis.__paddeckHost || null;
+const BOARDS_DIR = path.join(DATA_DIR, 'whiteboards');
+const EXPORT_DIR = path.join(os.homedir(), 'Documents', 'PadDeck');
+fs.mkdirSync(BOARDS_DIR, { recursive: true });
 const DISCOVERY_PORT = 47801;
 
 log.init(DATA_DIR);
 const store = new Store();
 const PORT = Number(process.env.PADDECK_PORT || store.state.port || 47800);
 const auth = new Auth(store);
-const helper = new Helper(HELPER_EXE, { tray: !process.env.PADDECK_NO_TRAY });
+const helper = new Helper(HELPER_EXE, { tray: !process.env.PADDECK_NO_TRAY && !host });
 const monitor = new Monitor(helper, store);
 const apps = new Apps(helper);
-const notify = (title, text) => helper.call('sys.notify', { title, text }).catch(() => {});
+const notify = (title, text) => (host ? Promise.resolve(host.notify(title, text)) : helper.call('sys.notify', { title, text }).catch(() => {}));
 const actions = new Actions({ helper, store, monitor, apps, notify });
 
 // ---------------------------------------------------------------- helpers
@@ -123,7 +128,11 @@ helper.on('tray', (what) => {
   if (what === 'quit') shutdown();
 });
 
-function updateTray() { helper.call('sys.trayText', { text: `PadDeck · ${[...clients].filter((c) => c.authed).length} tablet(s) connected` }).catch(() => {}); }
+function updateTray() {
+  const devs = [...clients].filter((c) => c.authed).map((c) => c.device.name);
+  if (host) host.setStatus?.(devs);
+  else helper.call('sys.trayText', { text: `PadDeck · ${devs.length} device(s) connected` }).catch(() => {});
+}
 
 async function handleWs(ws, msg) {
   const reply = (m) => ws.readyState === 1 && ws.send(JSON.stringify(m));
@@ -166,6 +175,17 @@ async function handleWs(ws, msg) {
       return;
     }
     case 'peripherals.scan': await monitor.pollPeripherals(); return;
+    case 'fs.places': return reply({ type: 'fs', places: places(), home: os.homedir() });
+    case 'fs.list': {
+      try { reply({ type: 'fs', listing: listDir(msg.path) }); } catch (e) { reply({ type: 'fs', error: e.message, path: msg.path }); }
+      return;
+    }
+    case 'pc.pick': {
+      // Opens the native Windows file/folder picker on the PC (desktop app only).
+      if (!host?.pickPath) return reply({ type: 'pc.picked', id: msg.id, error: 'Open PadDeck Desktop on the PC to use its file picker' });
+      try { reply({ type: 'pc.picked', id: msg.id, path: await host.pickPath(msg.kind || 'file') }); } catch (e) { reply({ type: 'pc.picked', id: msg.id, error: e.message }); }
+      return;
+    }
     case 'display.status': return reply({ type: 'display', status: await displayStatus(), lan: lanAddresses() });
     case 'display.openHost': {
       const st = await displayStatus();
@@ -220,6 +240,19 @@ const server = http.createServer(async (req, res) => {
   const p = decodeURIComponent(url.pathname);
   try {
     // ---- public
+    // The Android app loads the dashboard from its own bundle, so API calls are cross-origin.
+    // Safe: authentication is a bearer token, never a cookie. Admin routes are excluded.
+    if ((p.startsWith('/api/') && !p.startsWith('/api/admin/')) || p.startsWith('/media/') || p.startsWith('/download/')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '86400' }); return res.end(); }
+    }
+    // Android app download (so phones/tablets can install it by scanning a QR code on the PC).
+    if (p === '/download/PadDeck.apk') {
+      const apk = [path.join(ROOT, 'PadDeck.apk'), path.join(ROOT, '..', 'PadDeck.apk')].find((f) => fs.existsSync(f));
+      if (!apk) return send(res, 404, 'The Android app is not bundled with this installation.');
+      res.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive', 'Content-Disposition': 'attachment; filename="PadDeck.apk"', 'Content-Length': fs.statSync(apk).size });
+      return fs.createReadStream(apk).pipe(res);
+    }
     if (p === '/api/discover') return send(res, 200, { app: 'PadDeck', version: VERSION, host: os.hostname(), port: PORT });
     if (p === '/api/pair' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req, 4096)).toString() || '{}');
@@ -253,6 +286,33 @@ const server = http.createServer(async (req, res) => {
         const name = `${crypto.randomBytes(6).toString('hex')}-${path.basename(orig, ext).replace(/[^\w.-]+/g, '_').slice(0, 40)}${ext}`;
         fs.writeFileSync(path.join(dir, name), data);
         return send(res, 200, { file: `${kind}/${name}` });
+      }
+      if (p === '/api/boards' && req.method === 'GET') {
+        const list = fs.readdirSync(BOARDS_DIR).filter((f) => f.endsWith('.json')).map((f) => {
+          try { const j = JSON.parse(fs.readFileSync(path.join(BOARDS_DIR, f), 'utf8')); return { id: j.id, name: j.name, updated: j.updated, thumb: j.thumb || null, count: (j.items || []).length }; } catch { return null; }
+        }).filter(Boolean).sort((a, b) => b.updated - a.updated);
+        return send(res, 200, list);
+      }
+      const bm = /^\/api\/boards\/([\w-]{1,64})$/.exec(p);
+      if (bm) {
+        const file = path.join(BOARDS_DIR, `${bm[1]}.json`);
+        if (req.method === 'GET') return fs.existsSync(file) ? serveFile(res, file) : send(res, 404, { error: 'Not found' });
+        if (req.method === 'DELETE') { fs.rmSync(file, { force: true }); return send(res, 200, { ok: true }); }
+        if (req.method === 'PUT') {
+          const body = JSON.parse((await readBody(req, 40 * 1024 * 1024)).toString());
+          body.id = bm[1]; body.updated = Date.now();
+          fs.writeFileSync(file + '.tmp', JSON.stringify(body)); fs.renameSync(file + '.tmp', file);
+          return send(res, 200, { ok: true, updated: body.updated });
+        }
+      }
+      if (p === '/api/save-export' && req.method === 'PUT') {
+        const ext = url.searchParams.get('ext') === 'pdf' ? 'pdf' : 'png';
+        const name = String(url.searchParams.get('name') || 'Whiteboard').replace(/[^\w .-]+/g, '_').slice(0, 60);
+        fs.mkdirSync(EXPORT_DIR, { recursive: true });
+        const file = path.join(EXPORT_DIR, `${name} ${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}`);
+        fs.writeFileSync(file, await readBody(req, 60 * 1024 * 1024));
+        log.info(`Whiteboard exported to ${file}`);
+        return send(res, 200, { file, folder: EXPORT_DIR });
       }
       if (p === '/api/export') return send(res, 200, store.config, { 'Content-Disposition': `attachment; filename="paddeck-config-${new Date().toISOString().slice(0, 10)}.json"` });
       if (p === '/api/import' && req.method === 'POST') {
@@ -294,6 +354,10 @@ async function adminApi(req, res, route, url) {
         settings: { port: store.state.port, autoStart: await getAutoStart(), allowNewPairing: store.state.allowNewPairing, notifications: store.config.notifications, pen: store.config.pen, hardware: store.config.hardware },
         dataDir: DATA_DIR, scripts: actions.listScripts(), logs: log.tail(300), screens: monitor.state.screens,
         helperRunning: !!helper.proc, display: await displayStatus(),
+        apk: [path.join(ROOT, 'PadDeck.apk'), path.join(ROOT, '..', 'PadDeck.apk')].some((f) => fs.existsSync(f)) ? {
+          url: `http://${ip}:${PORT}/download/PadDeck.apk`,
+          qr: await QRCode.toString(`http://${ip}:${PORT}/download/PadDeck.apk`, { type: 'svg', margin: 1, color: { dark: '#0b0b12', light: '#ffffff' } }),
+        } : null,
       });
     }
     case 'rotate': auth.rotate(); return send(res, 200, { ok: true });
@@ -335,9 +399,11 @@ async function adminApi(req, res, route, url) {
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const launcherVbs = path.join(ROOT, 'PadDeck.vbs');
 function getAutoStart() {
+  if (host?.getAutoStart) return Promise.resolve(host.getAutoStart());
   return new Promise((r) => execFile('reg.exe', ['query', RUN_KEY, '/v', 'PadDeck'], { windowsHide: true }, (e, out) => r(!e && /PadDeck/.test(out))));
 }
 function setAutoStart(on) {
+  if (host?.setAutoStart) return Promise.resolve(host.setAutoStart(on));
   const args = on ? ['add', RUN_KEY, '/v', 'PadDeck', '/t', 'REG_SZ', '/d', `wscript.exe "${launcherVbs}"`, '/f'] : ['delete', RUN_KEY, '/v', 'PadDeck', '/f'];
   return new Promise((r) => execFile('reg.exe', args, { windowsHide: true }, () => r()));
 }
@@ -408,26 +474,29 @@ udp.on('error', (e) => log.warn('Discovery socket', e.message));
 // ---------------------------------------------------------------- lifecycle
 function restart() {
   log.info('Restarting companion');
+  if (host?.restart) return closeAll(() => host.restart());
   closeAll(() => {
     const child = spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: 'ignore', windowsHide: true, env: process.env });
     child.unref();
     process.exit(0);
   });
 }
-function shutdown() { log.info('Quitting companion'); closeAll(() => process.exit(0)); }
+function shutdown() { log.info('Quitting companion'); closeAll(() => (host?.quit ? host.quit() : process.exit(0))); }
+if (host) { host.restartCompanion = restart; host.quitCompanion = shutdown; host.port = PORT; host.version = VERSION; }
 function closeAll(done) {
   monitor.stop(); helper.stop();
   for (const c of clients) c.close(1001, 'Companion stopping');
   try { udp.close(); } catch {}
   server.close(); setTimeout(done, 1200);
 }
-process.on('SIGINT', shutdown);
+if (!host) process.on('SIGINT', shutdown);
 process.on('uncaughtException', (e) => log.error('Uncaught', e));
 process.on('unhandledRejection', (e) => log.error('Unhandled rejection', e));
 
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
-    log.error(`Port ${PORT} is in use - PadDeck is probably already running. Opening its settings page.`);
+    log.error(`Port ${PORT} is in use - PadDeck is probably already running.`);
+    if (host) { host.portInUse?.(PORT); return; }
     spawn('explorer.exe', [`http://localhost:${PORT}/admin`], { detached: true, stdio: 'ignore' }).unref();
     process.exit(0);
   }

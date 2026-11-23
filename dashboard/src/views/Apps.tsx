@@ -17,9 +17,9 @@ const FEATURED: { name: string; match: RegExp; icon: string; color: string; fall
 ]
 
 function AppIcon({ app, size = 52, fallback = 'AppWindow', color }: { app?: AppEntry; size?: number; fallback?: string; color?: string }) {
-  const key = app ? `app:${app.appId}` : ''
+  const key = app ? `app:${app.id}` : ''
   const img = useStore((s) => (key ? s.icons[key] : null))
-  useEffect(() => { if (app) requestIcon(key, { appId: app.appId }) }, [key, app])
+  useEffect(() => { if (app) requestIcon(key, { appId: app.appId, path: app.path }) }, [key, app])
   return (
     <span className="rounded-2xl flex items-center justify-center shrink-0 overflow-hidden" style={{ width: size, height: size, background: img ? 'transparent' : color || 'var(--surface-2)' }}>
       {img ? <img src={mediaUrl(img)} alt="" className="w-full h-full object-contain" draggable={false} /> : <Icon name={fallback} size={size * 0.45} className={color ? 'text-white' : 'text-ink-2'} />}
@@ -34,8 +34,8 @@ export function AppsView() {
   const [adding, setAdding] = useState(false)
   const lp = useRef<number | undefined>(undefined)
   const favs = config.favoriteApps
-  const launch = (a: AppEntry) => run({ type: 'app', appId: a.appId, name: a.name })
-  const toggleFav = (a: AppEntry) => { updateConfig((c) => { c.favoriteApps = c.favoriteApps.includes(a.appId) ? c.favoriteApps.filter((x) => x !== a.appId) : [...c.favoriteApps, a.appId] }); toast(favs.includes(a.appId) ? `Unpinned ${a.name}` : `Pinned ${a.name}`) }
+  const launch = (a: AppEntry) => run({ type: 'app', appId: a.appId, path: a.path, name: a.name })
+  const toggleFav = (a: AppEntry) => { updateConfig((c) => { c.favoriteApps = c.favoriteApps.includes(a.id) ? c.favoriteApps.filter((x) => x !== a.id) : [...c.favoriteApps, a.id] }); toast(favs.includes(a.id) ? `Unpinned ${a.name}` : `Pinned ${a.name}`) }
   const filtered = useMemo(() => apps.filter((a) => a.name.toLowerCase().includes(q.toLowerCase())), [apps, q])
   const press = (a: AppEntry) => ({
     onPointerDown: () => { lp.current = window.setTimeout(() => { lp.current = -1; navigator.vibrate?.(15); toggleFav(a) }, 550) },
@@ -45,7 +45,7 @@ export function AppsView() {
   })
 
   return (
-    <div className="h-full flex flex-col gap-[var(--gap)] min-h-0">
+    <div className="h-full flex flex-col gap-[var(--gap)] min-h-0 overflow-y-auto lg:overflow-visible">
       <Panel title="Featured" icon="Star">
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(118px, 1fr))' }}>
           {FEATURED.map((f) => {
@@ -62,16 +62,16 @@ export function AppsView() {
           })}
         </div>
       </Panel>
-      <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-[var(--gap)] flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-[var(--gap)] flex-1 min-h-0">
         <Panel title={`All apps · ${apps.length}`} icon="LayoutGrid" right={<button className="tap text-ink-3" onClick={() => send({ type: 'apps.list', refresh: true })}><Icon name="RefreshCw" size={15} /></button>}>
           <input className="field mb-3" placeholder="Search installed apps…" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="flex-1 min-h-0 overflow-y-auto thin-scroll -mr-2 pr-2">
             <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))' }}>
               {filtered.map((a) => (
-                <button key={a.appId} {...press(a)} className="tap flex items-center gap-3 rounded-2xl p-2 hover:bg-surface-2 text-left">
+                <button key={a.id} {...press(a)} className="tap flex items-center gap-3 rounded-2xl p-2 hover:bg-surface-2 text-left">
                   <AppIcon app={a} size={40} />
                   <span className="text-[13.5px] truncate flex-1">{a.name}</span>
-                  {favs.includes(a.appId) && <Icon name="Pin" size={13} className="text-accent shrink-0" />}
+                  {favs.includes(a.id) && <Icon name="Pin" size={13} className="text-accent shrink-0" />}
                 </button>
               ))}
             </div>
@@ -81,8 +81,8 @@ export function AppsView() {
         <div className="flex flex-col gap-[var(--gap)] min-h-0">
           <Panel title="Pinned" icon="Pin" className="flex-1 min-h-0">
             <div className="overflow-y-auto thin-scroll space-y-1.5 min-h-0">
-              {favs.map((id) => apps.find((a) => a.appId === id)).filter(Boolean).map((a) => (
-                <button key={a!.appId} {...press(a!)} className="tap w-full flex items-center gap-3 rounded-2xl p-2 bg-surface-2/60 text-left">
+              {favs.map((id) => apps.find((a) => a.id === id)).filter(Boolean).map((a) => (
+                <button key={a!.id} {...press(a!)} className="tap w-full flex items-center gap-3 rounded-2xl p-2 bg-surface-2/60 text-left">
                   <AppIcon app={a!} size={38} /><span className="text-[13.5px] truncate flex-1">{a!.name}</span>
                 </button>
               ))}

@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 const companion = process.env.PADDECK_URL || 'http://localhost:47800'
 
 export default defineConfig({
+  base: './',
   plugins: [react(), tailwindcss()],
   build: {
     chunkSizeWarningLimit: 2000,

@@ -3,7 +3,7 @@ export type Action = { type: string; [k: string]: any }
 export interface DeckButton {
   id: string; x: number; y: number; w: number; h: number
   label: string; icon?: string; image?: string; appIcon?: boolean
-  bg?: string; fg?: string; action: Action
+  bg?: string; bg2?: string; fg?: string; emoji?: string; fileIcon?: boolean; action: Action
   confirm?: boolean; toggle?: boolean
   bind?: 'micMuted' | 'outputMuted' | 'focus' | 'mediaPlaying' | string
   activeBg?: string; activeIcon?: string; activeLabel?: string
@@ -11,13 +11,14 @@ export interface DeckButton {
 
 export interface DeckPage { id: string; name: string; icon: string; cols: number; rows: number; buttons: DeckButton[] }
 
-export interface Sound { id: string; name: string; file: string; icon: string; color: string; volume: number; category?: string }
+export interface Sound { id: string; name: string; file: string; icon: string; emoji?: string; color: string; volume: number; category?: string }
 export interface SoundPage { id: string; name: string; sounds: Sound[] }
 
 export interface Theme {
   mode: 'dark' | 'light'; accent: string; background: { type: 'gradient' | 'solid' | 'image'; value: string }
   radius: number; gap: number; buttonStyle: 'glass' | 'solid' | 'outline'; font: string; showLabels: boolean; density: string
-  name?: string
+  name?: string; preset?: string
+  colors?: { accent: string; accent2: string; bg: string; panel: string; button: string; text: string; border: string; selected: string }
 }
 
 export interface Profile {

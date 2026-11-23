@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { activeProfile, useStore } from '../lib/store'
 import type { Action } from '../lib/types'
 import { Btn, Field, Icon, IconBtn, cx } from '../components/ui'
+import { FilePicker } from '../components/FilePicker'
 
 export const ACTION_TYPES: { type: string; label: string; icon: string; group: string }[] = [
   { type: 'app', label: 'Launch app', icon: 'AppWindow', group: 'Launch' },
@@ -24,6 +25,7 @@ export const ACTION_TYPES: { type: string; label: string; icon: string; group: s
   { type: 'focus', label: 'Focus mode', icon: 'Target', group: 'System' },
   { type: 'discord', label: 'Discord', icon: 'MessageCircle', group: 'System' },
   { type: 'page', label: 'Go to page', icon: 'Files', group: 'PadDeck' },
+  { type: 'profile', label: 'Switch profile', icon: 'Users', group: 'PadDeck' },
   { type: 'mode', label: 'Switch mode', icon: 'LayoutGrid', group: 'PadDeck' },
 ]
 
@@ -33,7 +35,7 @@ export const SYSTEM_OPS = [
   ['sleep', 'Sleep'], ['restart', 'Restart'], ['shutdown', 'Shut down'], ['signout', 'Sign out'], ['cancel-shutdown', 'Cancel shutdown'],
 ]
 const MEDIA_OPS = [['toggle', 'Play / pause'], ['play', 'Play'], ['pause', 'Pause'], ['next', 'Next track'], ['prev', 'Previous track'], ['stop', 'Stop']]
-const MODES = [['deck', 'Stream Deck'], ['control', 'Control Centre'], ['audio', 'Audio'], ['sounds', 'Soundboard'], ['apps', 'Apps'], ['draw', 'Drawing tablet'], ['display', 'Second monitor']]
+const MODES = [['deck', 'Stream Deck'], ['sounds', 'Soundboard'], ['whiteboard', 'Whiteboard'], ['control', 'Control Centre'], ['audio', 'Audio'], ['apps', 'Apps'], ['draw', 'Drawing tablet'], ['display', 'Second monitor']]
 
 export const parseKeys = (s: string) => s.split(/\s*\+\s*/).map((k) => k.trim().toLowerCase()).filter(Boolean)
 export const fmtKeys = (k?: string[]) => (k || []).map((x) => (x.length === 1 ? x.toUpperCase() : x[0].toUpperCase() + x.slice(1))).join(' + ')
@@ -67,6 +69,8 @@ export function ActionEditor({ action, onChange }: { action: Action; onChange: (
   const scripts = useStore((s) => s.scripts)
   const prof = activeProfile(config)!
   const [appQ, setAppQ] = useState('')
+  const [browse, setBrowse] = useState<null | 'file' | 'dir' | 'any' | 'app'>(null)
+  const baseName = (p: string) => p.split(/[\\/]/).filter(Boolean).pop()?.replace(/\.(lnk|exe|url)$/i, '') || p
   const set = (patch: Partial<Action>) => onChange({ ...action, ...patch })
   const groups = [...new Set(ACTION_TYPES.map((a) => a.group))]
 
@@ -89,12 +93,16 @@ export function ActionEditor({ action, onChange }: { action: Action; onChange: (
 
       {action.type === 'app' && (
         <>
-          <Field label="Application" hint={action.appId ? `Selected: ${action.name || action.appId}` : 'Detected from the Windows Start menu'}>
-            <input className="field mb-2" placeholder="Search installed apps…" value={appQ} onChange={(e) => setAppQ(e.target.value)} />
+          <Field label="Application" hint={action.appId || action.path ? `Selected: ${action.name || action.appId || action.path}` : `${apps.length} apps found in the Start menu, installed programs and desktop shortcuts`}>
+            <div className="flex gap-2 mb-2">
+              <input className="field" placeholder="Search installed apps…" value={appQ} onChange={(e) => setAppQ(e.target.value)} />
+              <Btn size="sm" icon="FolderSearch" className="!h-11 shrink-0" onClick={() => setBrowse('app')}>Browse PC</Btn>
+            </div>
             <div className="max-h-44 overflow-y-auto thin-scroll grid grid-cols-2 gap-1.5">
-              {apps.filter((a) => a.name.toLowerCase().includes(appQ.toLowerCase())).slice(0, 80).map((a) => (
-                <button key={a.appId} onClick={() => set({ appId: a.appId, name: a.name })} className={cx('tap text-left px-3 py-2 rounded-xl text-[13px] truncate', action.appId === a.appId ? 'bg-accent text-white' : 'bg-surface-2')}>{a.name}</button>
-              ))}
+              {apps.filter((a) => a.name.toLowerCase().includes(appQ.toLowerCase())).slice(0, 120).map((a) => {
+                const on = (action.appId || (action.path ? `path:${action.path}` : '')) === a.id
+                return <button key={a.id} onClick={() => set({ appId: a.appId, path: a.path, name: a.name })} className={cx('tap text-left px-3 py-2 rounded-xl text-[13px] truncate', on ? 'bg-accent' : 'bg-surface-2')}>{a.name}<span className="opacity-50 text-[10px] ml-1">{a.source === 'desktop' ? 'desktop' : a.source === 'registry' ? 'installed' : a.kind === 'store' ? 'store' : ''}</span></button>
+              })}
             </div>
           </Field>
           <Field label="Launch arguments (optional)" hint="Only used for desktop apps whose executable path is known"><input className="field" value={action.args || ''} onChange={(e) => set({ args: e.target.value })} /></Field>
@@ -103,7 +111,10 @@ export function ActionEditor({ action, onChange }: { action: Action; onChange: (
       {action.type === 'url' && <Field label="Website URL"><input className="field" placeholder="https://" value={action.url || ''} onChange={(e) => set({ url: e.target.value })} /></Field>}
       {action.type === 'open' && (
         <>
-          <Field label="Path on the PC" hint="A folder, file, or program, e.g. C:\Users\You\Documents"><input className="field" value={action.path || ''} onChange={(e) => set({ path: e.target.value })} /></Field>
+          <Field label="Path on the PC" hint="A folder, document, image, video, program or shortcut">
+            <input className="field mb-2" value={action.path || ''} onChange={(e) => set({ path: e.target.value })} placeholder="C:\Users\You\Projects\MyProject" />
+            <div className="flex gap-2"><Btn size="sm" icon="Folder" onClick={() => setBrowse('dir')}>Choose folder</Btn><Btn size="sm" icon="File" onClick={() => setBrowse('file')}>Choose file</Btn></div>
+          </Field>
           <Field label="Arguments (optional)"><input className="field" value={action.args || ''} onChange={(e) => set({ args: e.target.value })} /></Field>
         </>
       )}
@@ -147,8 +158,11 @@ export function ActionEditor({ action, onChange }: { action: Action; onChange: (
           <Sel value={action.op || 'launch'} onChange={(v) => set({ op: v })} options={[['launch', 'Launch Discord'], ['mute', 'Toggle Discord mute'], ['deafen', 'Toggle Discord deafen']]} />
         </Field>
       )}
+      {action.type === 'profile' && <Field label="Profile" hint="Switches the profile on the device you press it on"><Sel value={action.profileId || ''} onChange={(v) => set({ profileId: v })} options={[['', 'Choose…'], ...config.profiles.map((p) => [p.id, p.name] as [string, string])]} /></Field>}
       {action.type === 'page' && <Field label="Page"><Sel value={action.pageId || ''} onChange={(v) => set({ pageId: v })} options={[['', 'Choose…'], ...prof.pages.map((p) => [p.id, p.name] as [string, string])]} /></Field>}
       {action.type === 'mode' && <Field label="Mode"><Sel value={action.mode || 'deck'} onChange={(v) => set({ mode: v })} options={MODES as [string, string][]} /></Field>}
+      <FilePicker open={!!browse} mode={browse === 'dir' ? 'dir' : browse === 'any' ? 'any' : 'file'} title={browse === 'app' ? 'Choose a program or shortcut' : undefined} onClose={() => setBrowse(null)}
+        onPick={(p) => { if (browse === 'app') set({ path: p, appId: null, name: baseName(p) }); else set({ path: p, name: baseName(p) }) }} />
     </div>
   )
 }

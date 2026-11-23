@@ -1,0 +1,85 @@
+{
+  "name": "paddeck-desktop",
+  "productName": "PadDeck",
+  "version": "2.0.0",
+  "description": "PadDeck Desktop - Stream Deck, soundboard, whiteboard and PC control centre for your Android phone and tablet",
+  "author": "PadDeck",
+  "license": "MIT",
+  "private": true,
+  "main": "main.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dist": "npm run bundle && electron-builder --win nsis --x64",
+    "bundle": "esbuild ../companion/src/server.js --bundle --platform=node --format=esm --target=node22 --outfile=../companion/dist/server.mjs --external:bufferutil --external:utf-8-validate \"--banner:js=import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);\""
+  },
+  "build": {
+    "appId": "com.paddeck.desktop",
+    "productName": "PadDeck",
+    "asar": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.mjs",
+      "assets/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../companion",
+        "to": "companion",
+        "filter": [
+          "dist/**",
+          "scripts/**",
+          "package.json"
+        ]
+      },
+      {
+        "from": "../dashboard/dist",
+        "to": "dashboard"
+      },
+      {
+        "from": "../native/bin/PadDeckHelper.exe",
+        "to": "native/PadDeckHelper.exe"
+      },
+      {
+        "from": "../PadDeck.apk",
+        "to": "PadDeck.apk"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "PadDeck-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "PadDeck",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^37.10.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.12"
+  },
+  "allowScripts": {
+    "electron@37.10.3": true,
+    "esbuild@0.25.12": true
+  }
+}
