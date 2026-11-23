@@ -1,0 +1,80 @@
+1
+00:00:00,150 --> 00:00:03,250
+Here's what every button on the Home page does.
+
+2
+00:00:03,950 --> 00:00:07,923
+Microphone mutes or unmutes your microphone in every app.
+
+3
+00:00:07,923 --> 00:00:13,360
+The tile turns red and says Mic muted, and turns green again when you're live.
+
+4
+00:00:14,060 --> 00:00:18,436
+Volume minus and Volume plus change the volume by five percent,
+
+5
+00:00:18,436 --> 00:00:20,659
+and Mute silences your speakers.
+
+6
+00:00:20,659 --> 00:00:23,160
+Watch the slider at the bottom move.
+
+7
+00:00:23,860 --> 00:00:30,680
+Play Pause, Previous, and Next control whatever is playing, like YouTube Music or Spotify.
+
+8
+00:00:31,380 --> 00:00:36,089
+Screenshot saves a picture of all your screens to Pictures, Screenshots,
+
+9
+00:00:36,089 --> 00:00:38,116
+and copies it to the clipboard.
+
+10
+00:00:38,116 --> 00:00:42,760
+Snip opens the Windows snipping tool, so you can capture just one area.
+
+11
+00:00:43,460 --> 00:00:48,546
+App tiles, like YouTube Music, Discord, and Chrome, open those apps.
+
+12
+00:00:48,546 --> 00:00:52,360
+A short message at the bottom confirms each action.
+
+13
+00:00:53,060 --> 00:00:57,960
+Task Manager, Explorer, and Settings open those Windows tools.
+
+14
+00:00:58,660 --> 00:01:04,172
+Focus lowers the volume, turns off notifications, and mutes the soundboard,
+
+15
+00:01:04,172 --> 00:01:05,862
+so you can concentrate.
+
+16
+00:01:05,862 --> 00:01:08,140
+Lock locks Windows immediately.
+
+17
+00:01:08,840 --> 00:01:13,600
+Important: Sleep, Restart, and Shut down affect your whole computer,
+
+18
+00:01:13,600 --> 00:01:15,280
+so save your work first.
+
+19
+00:01:15,280 --> 00:01:18,150
+PadDeck always asks you to confirm these,
+
+20
+00:01:18,150 --> 00:01:22,350
+and Restart and Shut down wait five seconds before starting.
+

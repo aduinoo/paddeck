@@ -1,0 +1,56 @@
+1
+00:00:00,150 --> 00:00:04,610
+Let's take a tour of the PadDeck screen, so you know what every part does.
+
+2
+00:00:05,310 --> 00:00:11,776
+On the left are the sections: Stream Deck, Soundboard, Control Centre, Audio, Apps,
+
+3
+00:00:11,776 --> 00:00:13,880
+and Settings at the bottom.
+
+4
+00:00:14,580 --> 00:00:20,091
+Across the top are your pages: Home, Work, Gaming, and Creative.
+
+5
+00:00:20,091 --> 00:00:22,330
+Tap a page name to switch.
+
+6
+00:00:23,030 --> 00:00:26,517
+Next to the connection badge is the current profile.
+
+7
+00:00:26,517 --> 00:00:30,540
+Tap it to switch to another profile, such as Work or Gaming.
+
+8
+00:00:31,240 --> 00:00:36,980
+The Edit button, at the top right, lets you add, move, and change tiles.
+
+9
+00:00:37,680 --> 00:00:42,566
+At the bottom you have a volume slider, the current speakers or headphones,
+
+10
+00:00:42,566 --> 00:00:44,260
+and the microphone button.
+
+11
+00:00:44,260 --> 00:00:50,058
+The green Live button at the top is your microphone too: green means people can hear you,
+
+12
+00:00:50,058 --> 00:00:51,100
+red means muted.
+
+13
+00:00:51,800 --> 00:00:59,077
+On the PC, the sidebar lists Dashboard, Stream Deck Editor, Applications, Soundboard,
+
+14
+00:00:59,077 --> 00:01:03,100
+Audio Control, Profiles, Devices, and Settings.
+

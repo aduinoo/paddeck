@@ -1,0 +1,48 @@
+1
+00:00:00,150 --> 00:00:04,280
+To finish, here are a few tips to get the most out of PadDeck.
+
+2
+00:00:04,980 --> 00:00:09,935
+PadDeck adapts when you rotate your tablet, and it works on phones too,
+
+3
+00:00:09,935 --> 00:00:11,750
+in portrait and landscape.
+
+4
+00:00:12,450 --> 00:00:16,192
+Make it yours with themes like Dark, AMOLED, or Midnight,
+
+5
+00:00:16,192 --> 00:00:20,130
+or pick your own colours with a colour picker or a hex code.
+
+6
+00:00:20,830 --> 00:00:25,215
+Create profiles for different activities, like Work and Gaming,
+
+7
+00:00:25,215 --> 00:00:27,790
+and switch between them with one tap.
+
+8
+00:00:28,490 --> 00:00:31,276
+Browse every installed app in the Apps section,
+
+9
+00:00:31,276 --> 00:00:34,300
+and put the buttons you use most on your Home page.
+
+10
+00:00:35,000 --> 00:00:36,354
+Thanks for watching!
+
+11
+00:00:36,354 --> 00:00:40,347
+You'll find the full user guide on the PadDeck GitHub page.
+
+12
+00:00:40,347 --> 00:00:41,430
+Happy streaming!
+

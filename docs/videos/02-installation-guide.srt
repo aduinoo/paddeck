@@ -1,0 +1,68 @@
+1
+00:00:00,150 --> 00:00:05,310
+In this video, we'll install PadDeck on your PC and on your tablet.
+
+2
+00:00:06,010 --> 00:00:09,979
+First, open the PadDeck Releases page on GitHub,
+
+3
+00:00:09,979 --> 00:00:14,858
+and download two files: the PadDeck setup file for Windows,
+
+4
+00:00:14,858 --> 00:00:17,670
+and PadDeck dot A P K for Android.
+
+5
+00:00:18,370 --> 00:00:21,293
+On your PC, double-click the setup file.
+
+6
+00:00:21,293 --> 00:00:26,993
+If Windows shows a blue box saying Windows protected your PC, click More info,
+
+7
+00:00:26,993 --> 00:00:28,162
+then Run anyway.
+
+8
+00:00:28,162 --> 00:00:32,255
+It appears because the installer isn't digitally signed.
+
+9
+00:00:32,255 --> 00:00:34,520
+Then click Install, and Finish.
+
+10
+00:00:35,220 --> 00:00:40,031
+PadDeck opens, and a blue PadDeck icon appears in the system tray,
+
+11
+00:00:40,031 --> 00:00:42,656
+at the bottom right of your taskbar.
+
+12
+00:00:42,656 --> 00:00:47,030
+If Windows Firewall asks, allow PadDeck on private networks.
+
+13
+00:00:47,730 --> 00:00:50,495
+Now let's install the app on your tablet.
+
+14
+00:00:50,495 --> 00:00:54,002
+In PadDeck on your PC, click Devices in the sidebar,
+
+15
+00:00:54,002 --> 00:00:56,970
+and find the box called Get the Android app.
+
+16
+00:00:57,670 --> 00:01:02,586
+Scan that code with your tablet's camera, and open the downloaded file.
+
+17
+00:01:02,586 --> 00:01:08,540
+When Android asks, allow installing apps from this source, then tap Install, and Open.
+

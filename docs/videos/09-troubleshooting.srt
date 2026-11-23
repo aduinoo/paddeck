@@ -1,0 +1,60 @@
+1
+00:00:00,150 --> 00:00:01,601
+Something not working?
+
+2
+00:00:01,601 --> 00:00:04,900
+Here are quick fixes for the most common problems.
+
+3
+00:00:05,600 --> 00:00:10,063
+If your tablet can't connect, put both devices on the same Wi-Fi,
+
+4
+00:00:10,063 --> 00:00:13,015
+check the PadDeck icon is in the PC's tray,
+
+5
+00:00:13,015 --> 00:00:16,379
+click Allow through firewall on the Devices page,
+
+6
+00:00:16,379 --> 00:00:19,400
+or type the address shown under the QR code.
+
+7
+00:00:20,100 --> 00:00:23,724
+If a button does nothing, check the badge says Connected,
+
+8
+00:00:23,724 --> 00:00:26,840
+and read the message at the bottom of the screen.
+
+9
+00:00:26,840 --> 00:00:29,002
+Make sure you're not in Edit mode.
+
+10
+00:00:29,002 --> 00:00:34,280
+Note that apps running as administrator ignore keyboard shortcuts from normal apps.
+
+11
+00:00:34,980 --> 00:00:36,785
+No sound from the soundboard?
+
+12
+00:00:36,785 --> 00:00:41,578
+Check the output shown at the top of the soundboard, and turn off Focus mode.
+
+13
+00:00:41,578 --> 00:00:46,620
+If the mic button doesn't mute, choose the right microphone in the Audio section.
+
+14
+00:00:47,320 --> 00:00:52,252
+If a tile says Unavailable, the app or file was moved or removed.
+
+15
+00:00:52,252 --> 00:00:58,170
+Press Rescan on the Applications page, then edit the tile and choose it again.
+

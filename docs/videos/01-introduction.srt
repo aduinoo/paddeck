@@ -1,0 +1,56 @@
+1
+00:00:00,150 --> 00:00:02,038
+Hi, and welcome to PadDeck!
+
+2
+00:00:02,038 --> 00:00:07,703
+In this short series, I'll show you how to turn an Android tablet or phone into a
+
+3
+00:00:07,703 --> 00:00:10,570
+wireless Stream Deck for your Windows PC.
+
+4
+00:00:11,270 --> 00:00:13,739
+A Stream Deck is a panel of buttons.
+
+5
+00:00:13,739 --> 00:00:17,991
+Each button does something on your computer with a single tap,
+
+6
+00:00:17,991 --> 00:00:22,380
+like muting your microphone, opening an app, or playing a sound.
+
+7
+00:00:23,080 --> 00:00:29,011
+With PadDeck, your tablet shows the buttons, and your PC carries out the actions.
+
+8
+00:00:29,011 --> 00:00:32,159
+Watch: tapping Task Manager, YouTube Music,
+
+9
+00:00:32,159 --> 00:00:36,040
+and Discord opens them on the computer straight away.
+
+10
+00:00:36,740 --> 00:00:41,111
+On the computer, PadDeck Desktop runs quietly in the background.
+
+11
+00:00:41,111 --> 00:00:45,960
+It also includes the Stream Deck Editor, where you design every button.
+
+12
+00:00:46,660 --> 00:00:51,377
+You'll need a Windows 10 or 11 PC, an Android tablet or phone,
+
+13
+00:00:51,377 --> 00:00:54,877
+and one Wi-Fi network that both devices share.
+
+14
+00:00:54,877 --> 00:00:57,920
+There's no account, and no subscription.
+

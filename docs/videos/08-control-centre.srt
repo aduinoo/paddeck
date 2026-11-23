@@ -1,0 +1,48 @@
+1
+00:00:00,150 --> 00:00:03,870
+The Control Centre shows your PC's health at a glance.
+
+2
+00:00:04,570 --> 00:00:08,298
+Here you'll see CPU, graphics, and memory usage,
+
+3
+00:00:08,298 --> 00:00:11,870
+with temperatures where Windows provides them.
+
+4
+00:00:12,570 --> 00:00:17,854
+The YouTube Music card shows the current song, artwork, and progress.
+
+5
+00:00:17,854 --> 00:00:21,760
+You can play, pause, skip, or drag the bar to seek.
+
+6
+00:00:22,460 --> 00:00:28,149
+You'll also see mouse and keyboard battery for Bluetooth devices, plus storage,
+
+7
+00:00:28,149 --> 00:00:30,021
+network speed, and uptime.
+
+8
+00:00:30,021 --> 00:00:35,350
+If a value isn't available, PadDeck says Unavailable, instead of guessing.
+
+9
+00:00:36,050 --> 00:00:40,413
+The Audio section switches speakers and microphones with one tap,
+
+10
+00:00:40,413 --> 00:00:43,300
+and sets the volume of each app separately.
+
+11
+00:00:44,000 --> 00:00:47,541
+On the PC, the same information is on the Dashboard.
+
+12
+00:00:47,541 --> 00:00:51,900
+Press Customize to choose which cards appear, and in what order.
+

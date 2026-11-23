@@ -8,7 +8,7 @@
 
 Tap big, colourful buttons on your tablet to mute your microphone, change the volume, control music, open apps, take screenshots, play sound effects and more — and design every button from a simple editor on your PC.
 
-[Download](../../releases) · [User Guide](docs/USER_GUIDE.md) · [Installation](docs/INSTALLATION.md) · [Connecting your tablet](docs/CONNECTION_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [FAQ](docs/FAQ.md) · [Video tutorials](docs/videos)
+[Download](../../releases) · [User Guide](docs/USER_GUIDE.md) · [Installation](docs/INSTALLATION.md) · [Connecting your tablet](docs/CONNECTION_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [FAQ](docs/FAQ.md) · [Video tutorials](#video-tutorials)
 
 <img src="docs/images/tablet-home.png" width="820" alt="PadDeck on a tablet showing the Home page of buttons">
 
@@ -109,6 +109,25 @@ One-tap switching of speakers/headphones and microphones, master and microphone 
 | **Tablet – Home page**<br><img src="docs/images/tablet-home.png" alt="Tablet home page"> | **Tablet – Edit mode**<br><img src="docs/images/tablet-edit.png" alt="Tablet edit mode"> |
 | **Tablet – Soundboard**<br><img src="docs/images/tablet-soundboard.png" alt="Soundboard"> | **Tablet – Control Centre**<br><img src="docs/images/tablet-control.png" alt="Control Centre"> |
 | **Phone – portrait**<br><img src="docs/images/phone-portrait.png" width="240" alt="Phone portrait"> | **Phone – landscape**<br><img src="docs/images/phone-landscape.png" alt="Phone landscape"> |
+
+### Video tutorials
+
+Narrated walkthroughs with subtitles (MP4 + `.srt`) live in [`docs/videos/`](docs/videos). The script with timestamps is in [`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md).
+
+| # | Video | Length |
+|---|---|---|
+| 1 | [Introduction](docs/videos/01-introduction.mp4) | 0:58 |
+| 2 | [Installation and setup](docs/videos/02-installation-guide.mp4) | 1:09 |
+| 3 | [Connecting your tablet](docs/videos/03-connection-guide.mp4) | 1:40 |
+| 4 | [Understanding the interface](docs/videos/04-interface-tour.mp4) | 1:04 |
+| 5 | [Customizing your Stream Deck](docs/videos/05-customization-guide.mp4) | 1:28 |
+| 6 | [Using the Stream Deck controls](docs/videos/06-stream-deck-controls.mp4) | 1:23 |
+| 7 | [Using the soundboard](docs/videos/07-soundboard.mp4) | 0:50 |
+| 8 | [The Control Centre](docs/videos/08-control-centre.mp4) | 0:53 |
+| 9 | [Troubleshooting](docs/videos/09-troubleshooting.mp4) | 0:59 |
+| 10 | [Final tips](docs/videos/10-final-tips.mp4) | 0:42 |
+| | [All ten in one video](docs/videos/complete-tutorial.mp4) | 11:06 |
+
 
 ---
 

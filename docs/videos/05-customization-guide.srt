@@ -1,0 +1,88 @@
+1
+00:00:00,150 --> 00:00:06,700
+Now let's make PadDeck yours: adding apps, rearranging tiles, and designing buttons.
+
+2
+00:00:07,400 --> 00:00:11,617
+To add an application, open the Stream Deck Editor on your PC.
+
+3
+00:00:11,617 --> 00:00:15,970
+In the Add to deck panel, type the app's name in the search box.
+
+4
+00:00:16,670 --> 00:00:18,399
+Click Add next to the app.
+
+5
+00:00:18,399 --> 00:00:22,191
+PadDeck creates a tile with the app's real icon and name,
+
+6
+00:00:22,191 --> 00:00:25,117
+and it appears on your tablet straight away.
+
+7
+00:00:25,117 --> 00:00:28,310
+You can also drag the app onto any empty square.
+
+8
+00:00:29,010 --> 00:00:33,379
+The Applications page lists everything PadDeck found on your PC.
+
+9
+00:00:33,379 --> 00:00:36,723
+Choose a page in the Add to menu, then click Add.
+
+10
+00:00:36,723 --> 00:00:39,590
+Press Rescan if you install something new.
+
+11
+00:00:40,290 --> 00:00:42,189
+To change a tile, click it.
+
+12
+00:00:42,189 --> 00:00:46,410
+The Button designer opens on the right, with a live preview.
+
+13
+00:00:47,110 --> 00:00:53,059
+Use the Action tab to choose what it does, the Design tab to change its icon, colours,
+
+14
+00:00:53,059 --> 00:00:57,140
+and size, and the Toggle tab to give it an on and off look.
+
+15
+00:00:57,840 --> 00:01:01,100
+To rearrange, drag a tile onto another square.
+
+16
+00:01:01,100 --> 00:01:06,062
+Drop it on another tile to swap them, on a page name to move it there,
+
+17
+00:01:06,062 --> 00:01:08,330
+or on a folder to put it inside.
+
+18
+00:01:09,030 --> 00:01:11,493
+You can do the same on the tablet.
+
+19
+00:01:11,493 --> 00:01:16,780
+Tap Edit, drag tiles around, or tap an empty square to add something new.
+
+20
+00:01:17,480 --> 00:01:25,022
+Long-press any tile for quick options: edit, duplicate, move to another page, or delete.
+
+21
+00:01:25,022 --> 00:01:26,307
+Made a mistake?
+
+22
+00:01:26,307 --> 00:01:27,250
+Press Undo.
+

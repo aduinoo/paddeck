@@ -1,0 +1,48 @@
+1
+00:00:00,150 --> 00:00:02,550
+Let's play some sounds with the soundboard.
+
+2
+00:00:03,250 --> 00:00:05,789
+Open the Soundboard from the left side.
+
+3
+00:00:05,789 --> 00:00:10,280
+Sounds play through your PC's speakers or headphones, not the tablet.
+
+4
+00:00:10,980 --> 00:00:17,103
+Use the categories across the top, like Funny Sounds, Memes, or Notifications,
+
+5
+00:00:17,103 --> 00:00:18,830
+to filter your sounds.
+
+6
+00:00:19,530 --> 00:00:21,114
+Tap a sound to play it.
+
+7
+00:00:21,114 --> 00:00:24,902
+Tap again to layer it, and play several sounds at once.
+
+8
+00:00:24,902 --> 00:00:28,070
+A playing sound shows stop and replay buttons.
+
+9
+00:00:28,770 --> 00:00:31,321
+Stop all silences everything instantly,
+
+10
+00:00:31,321 --> 00:00:35,180
+and the slider next to it sets the soundboard's own volume.
+
+11
+00:00:35,880 --> 00:00:42,468
+To add your own sounds, click Add sounds, and choose MP3, WAV, or OGG files.
+
+12
+00:00:42,468 --> 00:00:49,490
+Long-press a sound to rename it, or change its icon, colour, category, or volume.
+
