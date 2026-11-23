@@ -355,7 +355,15 @@ function computeLayout(): 'phone' | 'tablet' | 'desktop' {
   return Math.min(window.innerWidth, window.innerHeight) < 600 || window.innerWidth < 760 ? 'phone' : 'tablet'
 }
 const layoutListeners = new Set<() => void>()
-if (typeof window !== 'undefined') window.addEventListener('resize', () => layoutListeners.forEach((l) => l()))
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => layoutListeners.forEach((l) => l()))
+  window.addEventListener('orientationchange', () => setTimeout(() => layoutListeners.forEach((l) => l()), 150))
+}
+// Screen orientation (follows rotation; the Android app rotates freely).
+const isPortrait = () => window.innerHeight > window.innerWidth
+export function useOrientation(): 'portrait' | 'landscape' {
+  return useSyncExternalStore((l) => { layoutListeners.add(l); return () => layoutListeners.delete(l) }, () => (isPortrait() ? 'portrait' : 'landscape'))
+}
 export function useLayout(): 'phone' | 'tablet' | 'desktop' {
   useStore((s) => devicePrefs(s.config).layout)
   return useSyncExternalStore((l) => { layoutListeners.add(l); return () => layoutListeners.delete(l) }, computeLayout)

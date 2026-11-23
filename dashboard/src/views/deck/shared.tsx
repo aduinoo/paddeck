@@ -45,7 +45,7 @@ export function TileFace({ b, active, compact, size = 'normal', unavailable }: {
   return (
     <>
       <span className="shine" />
-      <div className={cx('relative w-full h-full flex items-center justify-center gap-2 p-3', pos === 'top' && 'flex-col', pos === 'left' && 'flex-row', pos === 'right' && 'flex-row-reverse', pos === 'center' && 'flex-col', unavailable && 'opacity-40 grayscale')}>
+      <div className={cx('relative w-full h-full flex items-center justify-center', compact ? 'gap-1 p-1.5' : 'gap-2 p-3', pos === 'top' && 'flex-col', pos === 'left' && 'flex-row', pos === 'right' && 'flex-row-reverse', pos === 'center' && 'flex-col', unavailable && 'opacity-40 grayscale')}>
         {visual}{text}
       </div>
       {active && !b.activeBg && <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-accent shadow-[0_0_10px_var(--accent)]" />}

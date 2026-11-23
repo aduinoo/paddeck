@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { activeProfile, updateConfig, useLayout, useStore } from '../lib/store'
+import { activeProfile, updateConfig, useLayout, useOrientation, useStore } from '../lib/store'
 import { Btn, Icon, Modal, cx } from '../components/ui'
 import { AudioSummary, BatteryWidget, CpuWidget, DiscordWidget, DiskWidget, FocusWidget, GpuWidget, MediaWidget, NetWidget, OtherBatteries, RamWidget, ShortcutsWidget, UptimeWidget } from './widgets'
 
@@ -16,7 +16,10 @@ export function Control() {
   const config = useStore((s) => s.config)!
   const prof = activeProfile(config)!
   const [edit, setEdit] = useState(false)
-  const phone = useLayout() === 'phone'
+  const cls = useLayout()
+  const portrait = useOrientation() === 'portrait'
+  const phone = cls === 'phone'
+  const cols = cls === 'desktop' ? 6 : phone ? (portrait ? 1 : 2) : portrait ? 2 : 6
   if (!pc) return null
   const list = prof.widgets.filter((w) => WIDGETS[w])
   const render = (w: string) => {
@@ -43,8 +46,8 @@ export function Control() {
         <h1 className={cx('text-[22px] font-semibold tracking-tight flex-1', phone && 'invisible')}>Control Centre</h1>
         <Btn size="sm" icon="LayoutDashboard" onClick={() => setEdit(true)}>Customize</Btn>
       </div>
-      <div className={cx('grid gap-[var(--gap)] pb-2', phone ? 'grid-cols-1' : 'grid-cols-6')}>
-        {list.map((w) => <div key={w} className="min-w-0" style={phone ? undefined : { gridColumn: `span ${WIDGETS[w].span}` }}>{render(w)}</div>)}
+      <div className="grid gap-[var(--gap)] pb-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>
+        {list.map((w) => <div key={w} className="min-w-0" style={cols === 6 ? { gridColumn: `span ${WIDGETS[w].span}` } : undefined}>{render(w)}</div>)}
       </div>
       <Modal open={edit} onClose={() => setEdit(false)} title="Customize widgets" footer={<Btn variant="accent" onClick={() => setEdit(false)}>Done</Btn>}>
         <div className="space-y-1.5">

@@ -1,7 +1,7 @@
 // The Stream Deck as used on the tablet/phone: pages, folders, live tiles, and in-place editing
 // (drag to move, long-press menu, add/duplicate/delete, undo).
 import { useEffect, useRef, useState } from 'react'
-import { activeProfile, checkPaths, redo, run, switchProfile, undo, updateConfig, useLayout, useStore } from '../lib/store'
+import { activeProfile, checkPaths, redo, run, switchProfile, undo, updateConfig, useLayout, useOrientation, useStore } from '../lib/store'
 import type { DeckButton, DeckPage } from '../lib/types'
 import { Btn, Confirm, Field, Icon, IconBtn, IconPicker, Modal, Slider, cx, uid } from '../components/ui'
 import { AddPanel } from './deck/AddPanel'
@@ -37,6 +37,7 @@ export function Deck() {
   const [edit, setEdit] = useState(false)
   const [pageEdit, setPageEdit] = useState<DeckPage | null>(null)
   const phone = useLayout() === 'phone'
+  const landscape = useOrientation() === 'landscape'
 
   const addPage = () => {
     const p: DeckPage = { id: uid('p'), name: `Page ${visiblePages(prof).length + 1}`, icon: 'LayoutGrid', cols: page?.cols || 5, rows: page?.rows || 4, buttons: [] }
@@ -47,7 +48,7 @@ export function Deck() {
   const rootId = trail[0]?.id
 
   return (
-    <div className="h-full flex flex-col gap-3">
+    <div className={cx('h-full flex flex-col', phone ? 'gap-2' : 'gap-3')}>
       <div className="flex items-center gap-2">
         {page.folder ? (
           <div className="flex-1 flex items-center gap-1.5 min-w-0">
@@ -59,7 +60,7 @@ export function Deck() {
           <div className="flex-1 flex gap-1.5 overflow-x-auto no-scrollbar">
             {visiblePages(prof).map((p) => (
               <button key={p.id} onClick={() => (edit && p.id === page.id ? setPageEdit(p) : setPageId(p.id))}
-                className={cx('tap h-11 px-4 rounded-2xl text-[14px] font-medium inline-flex items-center gap-2 shrink-0', p.id === rootId ? 'bg-surface-2 text-ink shadow-[inset_0_0_0_1.5px_var(--selected)]' : 'text-ink-2')}>
+                className={cx('tap rounded-2xl font-medium inline-flex items-center gap-2 shrink-0', phone ? 'h-9 px-3 text-[13px]' : 'h-11 px-4 text-[14px]', p.id === rootId ? 'bg-surface-2 text-ink shadow-[inset_0_0_0_1.5px_var(--selected)]' : 'text-ink-2')}>
                 <Icon name={p.icon} size={17} />{p.name}{edit && p.id === page.id && <Icon name="Pencil" size={13} className="text-ink-3" />}
               </button>
             ))}
@@ -70,10 +71,10 @@ export function Deck() {
           <IconBtn icon="Undo2" label="Undo" onClick={undo} className={cx(!canUndo && 'opacity-40')} />
           <IconBtn icon="Redo2" label="Redo" onClick={redo} className={cx(!canRedo && 'opacity-40')} />
         </>}
-        <Btn variant={edit ? 'accent' : 'soft'} icon={edit ? 'Check' : 'Pencil'} onClick={() => setEdit(!edit)}>{edit ? 'Done' : 'Edit'}</Btn>
+        <Btn size={phone ? 'sm' : 'md'} variant={edit ? 'accent' : 'soft'} icon={edit ? 'Check' : 'Pencil'} onClick={() => setEdit(!edit)}>{edit ? 'Done' : 'Edit'}</Btn>
       </div>
       <Grid page={page} edit={edit} onNavigate={go} />
-      {!edit && <QuickBar />}
+      {!edit && !(phone && landscape) && <QuickBar />}
       {edit && phone && <div className="flex gap-2"><Btn icon="Undo2" className="flex-1" disabled={!canUndo} onClick={undo}>Undo</Btn><Btn icon="Redo2" className="flex-1" disabled={!canRedo} onClick={redo}>Redo</Btn></div>}
       {pageEdit && <PageEditor page={pageEdit} onClose={() => setPageEdit(null)} onDeleted={() => { setPageEdit(null); setPageId(visiblePages(prof).find((p) => p.id !== pageEdit.id)?.id || '') }} />}
     </div>
@@ -126,7 +127,12 @@ function Grid({ page, edit, onNavigate }: { page: DeckPage; edit: boolean; onNav
   const gridRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null)
   const occupied = occupancy(page)
-  const phone = useLayout() === 'phone'
+  const cls = useLayout()
+  const portrait = useOrientation() === 'portrait'
+  // Portrait screens reflow a landscape page (e.g. 5x4) into fewer columns in reading order;
+  // phones scroll with square tiles, tablets fill the screen. Landscape uses the real grid.
+  const reflow = portrait && cls !== 'desktop'
+  const phone = cls === 'phone'
 
   const cellAt = (cx: number, cy: number) => {
     const r = gridRef.current!.getBoundingClientRect()
@@ -138,30 +144,33 @@ function Grid({ page, edit, onNavigate }: { page: DeckPage; edit: boolean; onNav
   }
   const cells: { x: number; y: number }[] = []
   if (edit) for (let y = 0; y < page.rows; y++) for (let x = 0; x < page.cols; x++) if (!occupied.has(`${x},${y}`)) cells.push({ x, y })
-  const portraitCols = Math.min(page.cols, typeof window !== 'undefined' && window.innerWidth < 420 ? 3 : 4)
+  const portraitCols = phone ? Math.min(page.cols, typeof window !== 'undefined' && window.innerWidth < 420 ? 3 : 4) : Math.min(page.cols, Math.max(3, page.rows))
+  const ordered = [...page.buttons].sort((a, b) => a.y - b.y || a.x - b.x)
+  const reflowRows = Math.max(1, Math.ceil((ordered.length + (edit ? 1 : 0)) / portraitCols))
+  // Reorder without dragging (reflowed grids): swap with the previous/next tile in reading order.
+  const nudge = (b: DeckButton, dir: -1 | 1) => { const i = ordered.findIndex((x) => x.id === b.id); const o = ordered[i + dir]; if (o) moveTile(page.id, b.id, o.x, o.y) }
   const props = (b: DeckButton) => ({
     b, edit, active: boundState(b, pc, focus, local), unavailable: unavailable(b), buttonStyle: prof.theme.buttonStyle,
     onTrigger: () => trigger(b), onEdit: () => setEditing(b), onMenu: (x: number, y: number) => setMenu({ b, x, y }),
   })
 
-  const body = phone ? (
-    // Phones: the same tiles reflowed into a compact scrolling grid (reading order).
-    <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-      <div className="grid pb-2" style={{ gridTemplateColumns: `repeat(${portraitCols}, minmax(0,1fr))`, gap: 'calc(var(--gap) * 0.7)' }}>
-        {[...page.buttons].sort((a, b) => a.y - b.y || a.x - b.x).map((b) => (
-          <div key={b.id} className="aspect-square flex"><ButtonView {...props({ ...b, w: 1, h: 1 })} b={{ ...b, w: 1, h: 1 }} compact dragging={null} onDrag={() => {}} onTrigger={() => (edit ? setEditing(b) : trigger(b))} /></div>
+  const body = reflow ? (
+    <div className={cx('flex-1 min-h-0', phone ? 'overflow-y-auto no-scrollbar' : 'flex')}>
+      <div className={cx('grid', phone ? 'pb-2' : 'flex-1')} style={{ gridTemplateColumns: `repeat(${portraitCols}, minmax(0,1fr))`, gridTemplateRows: phone ? undefined : `repeat(${reflowRows}, minmax(0,1fr))`, gap: phone ? 'calc(var(--gap) * 0.7)' : 'var(--gap)' }}>
+        {ordered.map((b) => (
+          <div key={b.id} className={cx('flex min-h-0', phone && 'aspect-square')}><ButtonView {...props({ ...b, w: 1, h: 1 })} b={{ ...b, w: 1, h: 1 }} compact={phone} fill dragging={null} onDrag={() => {}} onTrigger={() => (edit ? setEditing(b) : trigger(b))} /></div>
         ))}
-        {edit && cells[0] && <button onClick={() => setAdding(cells[0])} className="tap aspect-square rounded-[var(--radius)] border-2 border-dashed border-line flex items-center justify-center text-ink-3"><Icon name="Plus" size={24} /></button>}
+        {edit && cells[0] && <button onClick={() => setAdding(cells[0])} className={cx('tap rounded-[var(--radius)] border-2 border-dashed border-line flex items-center justify-center text-ink-3', phone && 'aspect-square')}><Icon name="Plus" size={24} /></button>}
       </div>
     </div>
   ) : (
-    <div ref={gridRef} className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: `repeat(${page.cols}, minmax(0,1fr))`, gridTemplateRows: `repeat(${page.rows}, minmax(0,1fr))`, gap: 'var(--gap)' }}>
+    <div ref={gridRef} className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: `repeat(${page.cols}, minmax(0,1fr))`, gridTemplateRows: `repeat(${page.rows}, minmax(0,1fr))`, gap: phone ? 'calc(var(--gap) * 0.55)' : 'var(--gap)' }}>
       {cells.map((c) => (
         <button key={`${c.x},${c.y}`} onClick={() => setAdding(c)} style={{ gridColumn: c.x + 1, gridRow: c.y + 1 }}
           className={cx('tap rounded-[var(--radius)] border-2 border-dashed border-line flex items-center justify-center text-ink-3', drag && 'bg-accent/10')}><Icon name="Plus" size={26} /></button>
       ))}
       {page.buttons.map((b) => (
-        <ButtonView key={b.id} {...props(b)} dragging={drag?.id === b.id ? drag : null}
+        <ButtonView key={b.id} {...props(b)} compact={phone} dragging={drag?.id === b.id ? drag : null}
           onDrag={(x, y, end) => {
             if (!end) { setDrag({ id: b.id, x, y }); return }
             setDrag(null)
@@ -182,6 +191,7 @@ function Grid({ page, edit, onNavigate }: { page: DeckPage; edit: boolean; onNav
           <div className="absolute glass rounded-2xl p-1.5 w-56 pop-in bg-[var(--bg)]/90" style={{ left: Math.min(menu.x, innerWidth - 230), top: Math.min(menu.y, innerHeight - 260) }} onPointerDown={(e) => e.stopPropagation()}>
             {([
               ['Pencil', 'Edit', () => setEditing(menu.b)],
+              ...(reflow ? [['ArrowLeft', 'Move earlier', () => nudge(menu.b, -1)], ['ArrowRight', 'Move later', () => nudge(menu.b, 1)]] as [string, string, () => void][] : []),
               ['Copy', 'Duplicate', () => duplicateTile(page.id, menu.b.id)],
               ['FolderInput', 'Move to page…', () => setMoving(menu.b)],
               ['Play', 'Run now', () => trigger(menu.b)],
@@ -217,8 +227,8 @@ function Grid({ page, edit, onNavigate }: { page: DeckPage; edit: boolean; onNav
   )
 }
 
-export function ButtonView({ b, edit, active, unavailable, buttonStyle, dragging, onTrigger, onEdit, onMenu, onDrag, compact }: {
-  b: DeckButton; edit: boolean; active: boolean; unavailable?: boolean; buttonStyle?: string; dragging: { x: number; y: number } | null; compact?: boolean
+export function ButtonView({ b, edit, active, unavailable, buttonStyle, dragging, onTrigger, onEdit, onMenu, onDrag, compact, fill }: {
+  b: DeckButton; edit: boolean; active: boolean; unavailable?: boolean; buttonStyle?: string; dragging: { x: number; y: number } | null; compact?: boolean; fill?: boolean
   onTrigger: () => void; onEdit: () => void; onMenu: (x: number, y: number) => void; onDrag: (x: number, y: number, end: boolean) => void
 }) {
   const [pressed, setPressed] = useState(false)
@@ -254,7 +264,7 @@ export function ButtonView({ b, edit, active, unavailable, buttonStyle, dragging
   return (
     <div ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onContextMenu={(e) => e.preventDefault()}
       className={cx(t.className, 'cursor-pointer', pressed && 'pressed', edit && !dragging && 'wiggle', dragging && 'z-30 shadow-2xl opacity-90')}
-      style={{ ...t.style, gridColumn: compact ? undefined : `${b.x + 1} / span ${b.w}`, gridRow: compact ? undefined : `${b.y + 1} / span ${b.h}`, flex: compact ? 1 : undefined, transform }}>
+      style={{ ...t.style, gridColumn: fill ? undefined : `${b.x + 1} / span ${b.w}`, gridRow: fill ? undefined : `${b.y + 1} / span ${b.h}`, flex: fill ? 1 : undefined, minWidth: fill ? 0 : undefined, transform }}>
       {ripples.map((r) => <span key={r.id} className="ripple" style={{ left: r.x - 40, top: r.y - 40, width: 80, height: 80 }} />)}
       <TileFace b={b} active={active} compact={compact} unavailable={unavailable} />
     </div>

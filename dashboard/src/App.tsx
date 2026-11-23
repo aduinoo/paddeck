@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { activeProfile, connect, devicePrefs, isDesktop, mediaUrl, run, switchProfile, useLayout, useStore } from './lib/store'
+import { activeProfile, connect, devicePrefs, isDesktop, mediaUrl, run, switchProfile, useLayout, useOrientation, useStore } from './lib/store'
 import { applyTheme } from './lib/theme'
 import { Icon, cx, Slider } from './components/ui'
 import { Toasts } from './components/Toasts'
@@ -42,6 +42,7 @@ export default function App() {
   const status = useStore((s) => s.status)
   const config = useStore((s) => s.config)
   const layout = useLayout()
+  const orientation = useOrientation()
   const [mode, setModeRaw] = useState<Mode>(() => {
     const m = lsGet('paddeck.mode') as Mode
     return m && (m === 'settings' || NAV.some((n) => n.id === m)) ? m : isDesktop ? 'editor' : 'deck'
@@ -58,20 +59,24 @@ export default function App() {
   const prefs = devicePrefs(config)
   const theme = prefs.themeOverride && prefs.theme ? prefs.theme : prof?.theme
   useEffect(() => { applyTheme(theme) }, [theme])
-  useEffect(() => { document.documentElement.dataset.layout = layout }, [layout])
+  useEffect(() => { document.documentElement.dataset.layout = layout; document.documentElement.dataset.orientation = orientation }, [layout, orientation])
 
   if (status === 'unpaired') return <><Background /><Pair /><Toasts /></>
   if (!config || !prof) return <><Background /><Connecting /><Toasts /></>
 
   const fullBleed = false
   const phone = layout === 'phone'
+  const portrait = orientation === 'portrait'
+  // Navigation follows the screen: bottom tabs in portrait, side rail in landscape.
+  const bottomNav = !isDesktop && portrait
+  const compactRail = phone && !portrait
   return (
     <div className="h-full flex flex-col">
       <Background kind={theme?.background.type === 'image' ? 'image' : theme?.background.value} image={theme?.background.type === 'image' ? theme.background.value : undefined} />
-      {!immersive && <TopBar mode={mode} phone={phone} setMode={setMode} />}
+      {!immersive && <TopBar mode={mode} phone={phone} short={compactRail} setMode={setMode} />}
       <div className="flex-1 flex min-h-0">
-        {!immersive && !phone && <Rail mode={mode} setMode={setMode} />}
-        <main className={cx('flex-1 min-w-0 min-h-0', !fullBleed && (phone ? 'px-3 pb-2' : 'pr-4 pb-4'), !fullBleed && immersive && 'p-4')}>
+        {!immersive && !bottomNav && <Rail mode={mode} setMode={setMode} compact={compactRail} />}
+        <main className={cx('flex-1 min-w-0 min-h-0', !fullBleed && (bottomNav ? 'px-3 pb-2' : compactRail ? 'pr-3 pb-2' : 'pr-4 pb-4'), !fullBleed && immersive && 'p-4')}>
           {mode === 'deck' && <Deck />}
           {mode === 'editor' && <Editor />}
           {mode === 'sounds' && <Sounds />}
@@ -83,7 +88,7 @@ export default function App() {
           {mode === 'settings' && <Settings />}
         </main>
       </div>
-      {!immersive && phone && <BottomNav mode={mode} setMode={setMode} />}
+      {!immersive && bottomNav && <BottomNav mode={mode} setMode={setMode} />}
       <Toasts />
     </div>
   )
@@ -105,7 +110,16 @@ function Connecting() {
   )
 }
 
-function Rail({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+function Rail({ mode, setMode, compact }: { mode: Mode; setMode: (m: Mode) => void; compact?: boolean }) {
+  if (compact) return (
+    // Phone in landscape: slim icon rail so the deck keeps the screen height.
+    <nav className="w-[60px] shrink-0 flex flex-col items-center gap-1 py-1 px-1.5 overflow-y-auto no-scrollbar" style={{ paddingLeft: 'max(6px, env(safe-area-inset-left))' }}>
+      {[...NAV, { id: 'settings' as Mode, icon: 'Settings', label: 'Settings', short: 'Settings' }].map((n) => (
+        <button key={n.id} onClick={() => setMode(n.id)} title={n.label}
+          className={cx('tap w-11 h-11 shrink-0 rounded-xl flex items-center justify-center', mode === n.id ? 'bg-selected' : 'text-ink-2')}><Icon name={n.icon} size={20} /></button>
+      ))}
+    </nav>
+  )
   if (isDesktop) return (
     <nav className="w-[220px] shrink-0 flex flex-col gap-1 py-2 pl-3 pr-2">
       {NAV.map((n) => (
@@ -184,7 +198,7 @@ function ProfileMenu({ onClose }: { onClose: () => void }) {
   )
 }
 
-function TopBar({ mode, phone, setMode }: { mode: Mode; phone: boolean; setMode: (m: Mode) => void }) {
+function TopBar({ mode, phone, short, setMode }: { mode: Mode; phone: boolean; short?: boolean; setMode: (m: Mode) => void }) {
   const status = useStore((s) => s.status)
   const latency = useStore((s) => s.latency)
   const config = useStore((s) => s.config)!
@@ -209,7 +223,7 @@ function TopBar({ mode, phone, setMode }: { mode: Mode; phone: boolean; setMode:
 
   if (phone) {
     return (
-      <header className="h-[60px] shrink-0 flex items-center gap-2 px-3" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <header className={cx('shrink-0 flex items-center gap-2 px-3', short ? 'h-[46px]' : 'h-[60px]')} style={{ paddingTop: short ? undefined : 'env(safe-area-inset-top)' }}>
         <span className={cx('w-2.5 h-2.5 rounded-full shrink-0', dot)} title={label} />
         <div className="relative min-w-0">
           <button onClick={() => setProfOpen((v) => !v)} className="tap flex items-center gap-1.5 min-w-0">
